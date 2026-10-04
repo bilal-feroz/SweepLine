@@ -1,0 +1,166 @@
+/**
+ * Simulation and design assumptions.
+ *
+ * Every number in this file is a DESIGN ASSUMPTION used by the agent-based
+ * engineering simulation. None of them is a validated field value. They are
+ * grouped here so they can be reviewed, challenged and calibrated against flume
+ * and field data later without touching simulation code.
+ */
+export const ASSUMPTIONS = {
+  /** Fixed integration step for the agent model (simulated seconds). */
+  timeStep: 0.1,
+
+  agent: {
+    /** Velocity relaxation time — gives inertia so trajectories bend gradually (s). */
+    tau: 2.0,
+    /** Self-propulsion from bell pulsation (m/s). */
+    swimSpeedMin: 0.02,
+    swimSpeedMax: 0.06,
+    /** Small-scale stochastic motion amplitude (m/s). */
+    turbulence: 0.022,
+    /** Vertical swimming toward preferred depth: gain (1/s) and cap (m/s). */
+    verticalGain: 0.06,
+    verticalMax: 0.04,
+    /** Vertical turbulent mixing amplitude (m/s). */
+    verticalNoise: 0.014,
+    /** Full-scale bell diameter range for Catostylus mosaicus (m). */
+    bellDiameterMin: 0.3,
+    bellDiameterMax: 0.45,
+    /** Shallowest depth an agent will occupy (m). */
+    minDepth: 0.3,
+  },
+
+  bloom: {
+    /** Fraction of spawns drawn from the main (near-shore) patch; the rest is a broad background. */
+    mainPatchFraction: 0.88,
+    /** Slow lateral wander of the patch centre (m). */
+    patchWander: 18,
+    /** Temporal patchiness of the arrival rate (± fraction). */
+    rateVariation: 0.3,
+    /** Leading edge of the bloom when a run starts from the approach stage (m). */
+    approachFillFrom: -240,
+    approachFillTo: -70,
+  },
+
+  curtain: {
+    /** Thickness of the zone where the curtain influences an agent (m). */
+    interactionRange: 3.0,
+    /** Distance at which an agent is considered to be guided along the curtain (m). */
+    guideDistance: 1.8,
+    /** Closest stand-off of a bell centre from the skirt plane (m). */
+    minStandoff: 0.35,
+    /** Fraction of the blocked (normal) velocity redirected along the curtain tangent. */
+    redirectGain: 0.6,
+    /** Fraction of the blocked velocity that becomes downward entrainment at the skirt face. */
+    entrainmentGain: 0.1,
+    /** Skirt blow-back: tan(theta) = liftCoefficient * Un^2. */
+    liftCoefficient: 4.6,
+    /** Fraction of wave elevation that appears as relative heave between skirt edge and bloom. */
+    relativeHeave: 0.5,
+    moduleLength: 10,
+    floatSpacing: 1.2,
+    intermediateAnchorSpacing: 30,
+    /** Deployment tow speed of the workboat (m/s ≈ 3 kn). */
+    deploySpeed: 1.5,
+    stowSpeed: 2.0,
+    /** Skirt depth adjustment rate of the reefing winches (m/s). */
+    skirtWinchRate: 0.3,
+    /** Length behind the laying point over which the skirt drops to full depth (m). */
+    skirtDropLag: 10,
+    /** Length over which a reefed section transitions (m). */
+    reefBand: 6,
+    /** Minimum allowed clearance between skirt bottom and seabed (m). */
+    seabedClearance: 1.0,
+    skirtDepthMin: 1.5,
+    skirtDepthMax: 4.0,
+    /** Wave overtopping: threshold Hs (m) and gain. */
+    overtopThreshold: 1.0,
+    overtopGain: 0.02,
+  },
+
+  throat: {
+    /** Bellmouth holding capacity per 1000 simulated agents. */
+    holdCapacityPerThousand: 20,
+    /** Advection speed through the bellmouth (m/s) = base + flow * transferFlowFraction. */
+    funnelSpeedBase: 0.15,
+    funnelSpeedFlow: 0.3,
+  },
+
+  transfer: {
+    /** Transfer rate at 100 % capacity, per 1000 simulated agents (agents/s). */
+    designRatePerThousand: 0.36,
+    /** Nominal transfer water flow at 100 % capacity (m³/h). */
+    designFlowM3h: 640,
+    /** Time for the standby path to reach full capacity after a primary fault (s). */
+    standbyActivationTime: 8,
+    /**
+     * Residual capacity of the passive open-flow line when no powered path is
+     * available (fraction of design). Set to 0 to model no passive path.
+     */
+    passiveDrainFraction: 0.25,
+    /** Mean velocity in the transfer line (m/s). */
+    pipeVelocity: 1.5,
+  },
+
+  release: {
+    /** Assumed transfer-line length to the safe release zone (m) — simulation assumption. */
+    distanceOptions: [250, 500, 750] as const,
+    jetSpeed: 0.35,
+  },
+
+  intake: {
+    /** Time a jellyfish remains impinged on the screens before removal (s). */
+    impingementDwell: 150,
+  },
+
+  safeOpen: {
+    /** Fraction of curtain length reefed in the fast upstream-first step. */
+    upstreamFraction: 0.4,
+    upstreamReefSpeed: 2.0,
+    /** Reef front speed while existing curtain traffic clears (m/s). */
+    clearingReefSpeed: 0.45,
+    finalReefSpeed: 1.5,
+    /** Clearing ends when this many or fewer agents remain guided on active sections. */
+    clearingThreshold: 2,
+    maxClearingTime: 150,
+    throatClearTimeout: 150,
+    /** Hard-limit violations must persist this long before SafeOpen triggers (s). */
+    violationDwell: 6,
+    /** Delay between losing all powered transfer paths and SafeOpen initiation (s). */
+    transferLossDelay: 2,
+    rearmSpeed: 2.0,
+  },
+
+  sequence: {
+    /** Early-warning message arrives this long after the bloom approach starts (s). */
+    warningAt: 4,
+    /** Envelope must be satisfied this long before auto-deployment begins (s). */
+    deployConfirm: 2,
+    /** Pre-roll used when a run starts in steady operation (s). */
+    steadyPreRoll: 780,
+    /** Integration step used only during pre-roll (s). Both engines use it, so the comparison stays fair. */
+    preRollStep: 0.4,
+  },
+
+  loads: {
+    /** Normal-velocity reference giving 100 % hydrodynamic load at full design skirt (m/s). */
+    designNormalVelocity: 0.2,
+    designSkirt: 4.0,
+    designWave: 1.5,
+    /** Guided agents per 1000-agent budget that represent 100 % biomass load. */
+    designGuidedPerThousand: 260,
+    hydroWeight: 0.55,
+    waveWeight: 0.3,
+    biomassWeight: 0.25,
+  },
+
+  metrics: {
+    /** Intake contacts per minute per 1000 agents dividing LOW/MEDIUM/HIGH screen loading. */
+    screenLoadMedium: 2.0,
+    screenLoadHigh: 5.0,
+    /** Rolling window for rates (s). */
+    rateWindow: 300,
+    /** Minimum resolved sample before a percentage is shown. */
+    minSample: 12,
+  },
+} as const;
