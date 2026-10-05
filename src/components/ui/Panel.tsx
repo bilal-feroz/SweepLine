@@ -22,6 +22,7 @@ export function Panel({
   className,
   bodyClassName,
   eyebrow,
+  dense,
 }: {
   title?: ReactNode;
   subtitle?: ReactNode;
@@ -32,27 +33,29 @@ export function Panel({
   className?: string;
   bodyClassName?: string;
   eyebrow?: ReactNode;
+  /** Tighter header and padding (for short strips such as the viewport bottom row). */
+  dense?: boolean;
 }) {
   return (
     <section className={cn('card flex min-h-0 flex-col', className)}>
       {(title || actions) && (
-        <header className="flex items-start justify-between gap-3 px-5 pt-4 pb-3">
+        <header className={cn('flex justify-between gap-3', dense ? 'items-center px-4 pt-3 pb-2' : 'items-start px-5 pt-4 pb-3')}>
           <div className="flex min-w-0 items-center gap-3">
             {icon && (
-              <IconTile tone={iconTone} size={38}>
+              <IconTile tone={iconTone} size={dense ? 30 : 38}>
                 {icon}
               </IconTile>
             )}
             <div className="min-w-0">
               {eyebrow && <div className="page-eyebrow !text-[11px]">{eyebrow}</div>}
-              {title && <h3 className="card-title truncate">{title}</h3>}
+              {title && <h3 className={cn('card-title truncate', dense && '!text-[15px]')}>{title}</h3>}
               {subtitle && <p className="card-sub mt-0.5 line-clamp-2">{subtitle}</p>}
             </div>
           </div>
-          {actions && <div className="flex shrink-0 items-center gap-2 pt-0.5">{actions}</div>}
+          {actions && <div className={cn('flex shrink-0 items-center gap-2', !dense && 'pt-0.5')}>{actions}</div>}
         </header>
       )}
-      <div className={cn('min-h-0 flex-1 px-5 pb-4', bodyClassName)}>{children}</div>
+      <div className={cn('min-h-0 flex-1', dense ? 'px-4 pb-3' : 'px-5 pb-4', bodyClassName)}>{children}</div>
     </section>
   );
 }

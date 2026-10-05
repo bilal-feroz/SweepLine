@@ -51,7 +51,7 @@ interface LabelEntry {
 }
 
 const v = new THREE.Vector3();
-const BASE_STEM = 30;
+const BASE_STEM = 24;
 const GAP = 6;
 
 
@@ -70,6 +70,8 @@ export class LabelSystem {
   topReserved = 60;
   /** Current app page (labels may be page-specific). */
   page = '';
+  /** Screen rectangles (viewport px) of HUD overlays that label cards keep clear of. */
+  readonly obstacles: Array<{ l: number; r: number; t: number; b: number }> = [];
   private compact = false;
   onPick: ((pick: string) => void) | null = null;
 
@@ -227,9 +229,10 @@ export class LabelSystem {
       }
     }
     ups.sort((a, b) => b.y - a.y);
-    const rects: Array<{ l: number; r: number; t: number; b: number; vp: LabelViewport }> = [];
+    // HUD overlays are obstacles in every viewport; placed cards only block their own viewport.
+    const rects: Array<{ l: number; r: number; t: number; b: number; vp: LabelViewport | '*' }> = this.obstacles.map((o) => ({ ...o, vp: '*' as const }));
     const overlaps = (vp: LabelViewport, l: number, r: number, t: number, b: number) =>
-      rects.find((o) => o.vp === vp && l < o.r + GAP && r > o.l - GAP && t < o.b + GAP && b > o.t - GAP);
+      rects.find((o) => (o.vp === vp || o.vp === '*') && l < o.r + GAP && r > o.l - GAP && t < o.b + GAP && b > o.t - GAP);
     for (const e of ups) {
       let l = e.x - 14;
       e.dx = 0;

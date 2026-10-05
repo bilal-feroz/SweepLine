@@ -321,7 +321,7 @@ export class SceneManager {
     }
     if (ui.flowView !== prev.flowView) this.applyFlowView(ui.flowView);
     this.labels.enabled = ui.labels;
-    this.labels.topReserved = 76;
+    this.labels.topReserved = 10;
     this.labels.page = ui.page;
     for (const w of WORLDS) this.jellies[w].selectedId = ui.selection?.kind === 'jelly' && ui.selection.engine === w ? ui.selection.agentId ?? -1 : -1;
     if (!ui.follow || ui.selection?.kind !== 'jelly') this.rig.followTarget = null;
@@ -668,6 +668,7 @@ export class SceneManager {
     this.infoTimer -= dt;
     if (this.infoTimer <= 0) {
       this.infoTimer = 0.25;
+      this.updateLabelObstacles();
       const t = this.controls.target;
       const dx = t.x - this.camera.position.x;
       const dz = t.z - this.camera.position.z;
@@ -677,6 +678,19 @@ export class SceneManager {
       if (ui.underwater !== underwater || Math.abs(ui.cameraDepth - depth) > 0.15 || Math.abs(ui.cameraHeading - heading) > 2) {
         useApp.getState().setUI({ underwater, cameraDepth: depth, cameraHeading: heading });
       }
+    }
+  }
+
+  /** Collect the HUD overlays in the current viewport ([data-hud]) so labels avoid them. */
+  private updateLabelObstacles(): void {
+    const obs = this.labels.obstacles;
+    obs.length = 0;
+    if (!this.slot) return;
+    const base = this.renderer.domElement.getBoundingClientRect();
+    for (const el of this.slot.querySelectorAll<HTMLElement>('[data-hud]')) {
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) continue;
+      obs.push({ l: r.left - base.left, r: r.right - base.left, t: r.top - base.top, b: r.bottom - base.top });
     }
   }
 

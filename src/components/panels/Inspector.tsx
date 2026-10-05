@@ -150,7 +150,7 @@ export function Inspector() {
       break;
   }
   return (
-    <div className="glass pointer-events-auto w-[268px] animate-fade-in px-3.5 py-3 shadow-2xl">
+    <div data-hud className="glass pointer-events-auto w-[256px] animate-fade-in px-3.5 py-3 shadow-2xl">
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <div>
           <div className="eyebrow !text-[9.5px]">Inspector</div>

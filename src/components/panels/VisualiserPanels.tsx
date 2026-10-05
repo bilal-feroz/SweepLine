@@ -259,15 +259,16 @@ export function EventLogCard({ max = 80 }: { max?: number }) {
   const start = snap.clockMs - snap.simTime * 1000;
   return (
     <Panel
+      dense
       title="Event Log"
-      icon={<FileText size={18} />}
+      icon={<FileText size={16} />}
       actions={
         <div className="relative" ref={ddRef}>
-          <button type="button" onClick={() => setOpen((o) => !o)} className="pill !h-[30px] !gap-1.5 !px-2.5" data-tone="muted">
+          <button type="button" onClick={() => setOpen((o) => !o)} className="pill !h-[26px] !gap-1.5 !px-2.5 !text-[10.5px]" data-tone="muted">
             {mode === 'clock' ? 'SIM CLOCK' : 'RUN TIME'} <ChevronDown size={13} />
           </button>
           {open && (
-            <div className="glass absolute top-[36px] right-0 z-50 w-[170px] animate-fade-in p-1 shadow-2xl">
+            <div className="glass absolute top-[32px] right-0 z-50 w-[170px] animate-fade-in p-1 shadow-2xl">
               {(
                 [
                   ['clock', 'Simulation clock'],
@@ -290,14 +291,14 @@ export function EventLogCard({ max = 80 }: { max?: number }) {
           )}
         </div>
       }
-      bodyClassName="min-h-0 !pb-3"
+      bodyClassName="min-h-0"
     >
       <div ref={listRef} className="h-full overflow-y-auto pr-1">
-        {events.length === 0 && <div className="text-[13px] text-muted">No events yet.</div>}
+        {events.length === 0 && <div className="text-[12.5px] text-muted">No events yet.</div>}
         {events.map((e) => (
-          <div key={e.id} className="flex items-start gap-3 py-[5px] text-[13px] leading-snug">
-            <span className="num w-[62px] shrink-0 text-[12px] text-muted">{mode === 'clock' ? clockTime(start + e.t * 1000) : mmss(e.t)}</span>
-            <span className={cn('mt-[6px] h-2 w-2 shrink-0 rounded-full', LEVEL_DOT[e.level])} />
+          <div key={e.id} className="flex items-start gap-2.5 py-[3px] text-[12.5px] leading-snug">
+            <span className="num w-[58px] shrink-0 text-[11.5px] text-muted">{mode === 'clock' ? clockTime(start + e.t * 1000) : mmss(e.t)}</span>
+            <span className={cn('mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full', LEVEL_DOT[e.level])} />
             <span className={LEVEL_TEXT[e.level]}>{e.message}</span>
           </div>
         ))}
@@ -313,19 +314,17 @@ export function TimelineWideCard() {
   const phase = order.indexOf(snap.stage) + 1;
   return (
     <Panel
+      dense
       title="Simulation Timeline"
-      icon={<Clock3 size={18} />}
+      icon={<Clock3 size={16} />}
       actions={
-        <span className="pill !h-[30px]" data-tone="muted">
+        <span className="pill !h-[26px] !text-[10.5px]" data-tone="muted">
           Phase {phase} of {order.length} · {mmss(snap.simTime)}
         </span>
       }
-      bodyClassName="flex flex-col justify-between gap-4"
+      bodyClassName="flex flex-col justify-end"
     >
-      <TimelineTrack compact />
-      <div className="h-[6px] w-full overflow-hidden rounded-full bg-[rgba(150,200,220,0.1)]">
-        <div className="h-full rounded-full bg-gradient-to-r from-cyan/60 to-cyan transition-[width] duration-500" style={{ width: `${(phase / order.length) * 100}%` }} />
-      </div>
+      <TimelineTrack size="sm" />
     </Panel>
   );
 }

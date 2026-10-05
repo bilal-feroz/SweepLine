@@ -65,7 +65,16 @@ export function PerformanceRail({ compact }: { compact?: boolean }) {
   const load = s.curtainLoad;
   const loadLabel = s.curtainLoadLabel === 'INACTIVE' ? 'Inactive' : s.curtainLoadLabel.charAt(0) + s.curtainLoadLabel.slice(1).toLowerCase();
   return (
-    <Panel title="Real-time Performance" actions={<Pill>LIVE</Pill>} bodyClassName="flex flex-col gap-3">
+    <Panel
+      dense
+      title="Real-time Performance"
+      actions={
+        <Pill className="!h-[22px] !text-[10.5px]">
+          LIVE
+        </Pill>
+      }
+      bodyClassName="flex flex-col gap-2.5"
+    >
       <RailMetric
         compact={compact}
         icon={<CircleGauge size={26} strokeWidth={1.5} />}
@@ -115,27 +124,32 @@ export function PerformanceRail({ compact }: { compact?: boolean }) {
 
 // ---------------------------------------------------------------- timeline
 
-export const TIMELINE_STAGES: Array<{ key: StageKey; label: string; sub: string }> = [
-  { key: 'bloom', label: 'Bloom', sub: 'Approach' },
-  { key: 'warning', label: 'Warning', sub: 'Received' },
-  { key: 'deploy', label: 'Deploy', sub: 'System' },
-  { key: 'sweep', label: 'Sweep', sub: '& Divert' },
-  { key: 'transfer', label: 'Transfer', sub: 'Live' },
-  { key: 'release', label: 'Safe', sub: 'Release' },
-  { key: 'recovery', label: 'Recovery', sub: '/ Standby' },
+export const TIMELINE_STAGES: Array<{ key: StageKey; label: string; sub: string; short: string }> = [
+  { key: 'bloom', label: 'Bloom', sub: 'Approach', short: 'Bloom' },
+  { key: 'warning', label: 'Warning', sub: 'Received', short: 'Warning' },
+  { key: 'deploy', label: 'Deploy', sub: 'System', short: 'Deploy' },
+  { key: 'sweep', label: 'Sweep', sub: '& Divert', short: 'Sweep' },
+  { key: 'transfer', label: 'Transfer', sub: 'Live', short: 'Transfer' },
+  { key: 'release', label: 'Safe', sub: 'Release', short: 'Release' },
+  { key: 'recovery', label: 'Recovery', sub: '/ Standby', short: 'Recovery' },
 ];
 
-export function TimelineTrack({ compact }: { compact?: boolean }) {
+/** Seven-stage sequence track. `sm` is the slim variant used in the viewport bottom strip. */
+export function TimelineTrack({ compact, size = 'md' }: { compact?: boolean; size?: 'md' | 'sm' }) {
   const snap = useSnap();
   if (!snap) return null;
+  const sm = size === 'sm';
   const order = snap.timeline.map((s) => s.key);
   const curIdx = order.indexOf(snap.stage);
+  const lineTop = sm ? 12 : 17;
+  const n = TIMELINE_STAGES.length;
   return (
     <div className="@container relative flex items-start justify-between">
-      <div className="absolute top-[17px] right-[22px] left-[22px] h-[2px] bg-[rgba(150,200,220,0.12)]" />
+      {/* Line runs between the first and last circle centres (each stage column is 1/n wide). */}
+      <div className="absolute h-[2px] bg-[rgba(150,200,220,0.12)]" style={{ top: lineTop, left: `calc(100% / ${2 * n})`, right: `calc(100% / ${2 * n})` }} />
       <div
-        className="absolute top-[17px] left-[22px] h-[2px] bg-gradient-to-r from-cyan/70 to-cyan transition-[width] duration-500"
-        style={{ width: `calc((100% - 44px) * ${Math.max(0, curIdx) / (TIMELINE_STAGES.length - 1)})` }}
+        className="absolute h-[2px] bg-gradient-to-r from-cyan/70 to-cyan transition-[width] duration-500"
+        style={{ top: lineTop, left: `calc(100% / ${2 * n})`, width: `calc(100% * ${Math.max(0, curIdx)} / ${n})` }}
       />
       {TIMELINE_STAGES.map((s, i) => {
         const at = snap.timeline.find((t) => t.key === s.key)?.at ?? null;
@@ -145,9 +159,10 @@ export function TimelineTrack({ compact }: { compact?: boolean }) {
           <div key={s.key} className="relative z-10 flex flex-1 flex-col items-center text-center">
             <div
               className={cn(
-                'flex h-9 w-9 items-center justify-center rounded-full border-2 text-[13.5px] font-semibold transition-all duration-300',
+                'flex items-center justify-center rounded-full border-2 font-semibold transition-all duration-300',
+                sm ? 'h-[26px] w-[26px] text-[12px]' : 'h-9 w-9 text-[13.5px]',
                 current
-                  ? 'border-cyan bg-cyan text-[#03121a] shadow-[0_0_0_5px_rgba(34,211,238,0.16),0_0_18px_rgba(34,211,238,0.55)]'
+                  ? cn('border-cyan bg-cyan text-[#03121a]', sm ? 'shadow-[0_0_0_4px_rgba(34,211,238,0.16),0_0_14px_rgba(34,211,238,0.5)]' : 'shadow-[0_0_0_5px_rgba(34,211,238,0.16),0_0_18px_rgba(34,211,238,0.55)]')
                   : reached
                     ? 'border-cyan/70 bg-[#0b1d2a] text-cyan'
                     : 'border-[rgba(150,200,220,0.22)] bg-[#0b1520] text-muted',
@@ -155,11 +170,15 @@ export function TimelineTrack({ compact }: { compact?: boolean }) {
             >
               {i + 1}
             </div>
-            <div className={cn('mt-2 text-[12.5px] leading-tight @max-[460px]:text-[11.5px]', current ? 'font-semibold text-white' : reached ? 'text-ink' : 'text-muted')}>
-              {s.label}
-              {!compact && <div className={cn('text-[12px] @max-[400px]:hidden @max-[460px]:text-[11px]', current ? 'text-ink' : 'text-muted')}>{s.sub}</div>}
-            </div>
-            <div className={cn('num mt-1.5 text-[11.5px]', current ? 'text-cyan' : 'text-dim')}>{at === null ? '--:--' : mmss(at)}</div>
+            {sm ? (
+              <div className={cn('mt-1.5 text-[11.5px] leading-tight', current ? 'font-semibold text-white' : reached ? 'text-ink' : 'text-muted')}>{s.short}</div>
+            ) : (
+              <div className={cn('mt-2 text-[12.5px] leading-tight @max-[460px]:text-[11.5px]', current ? 'font-semibold text-white' : reached ? 'text-ink' : 'text-muted')}>
+                {compact ? s.short : s.label}
+                {!compact && <div className={cn('text-[12px] @max-[400px]:hidden @max-[460px]:text-[11px]', current ? 'text-ink' : 'text-muted')}>{s.sub}</div>}
+              </div>
+            )}
+            <div className={cn('num', sm ? 'mt-0.5 text-[10.5px]' : 'mt-1.5 text-[11.5px]', current ? 'text-cyan' : 'text-dim')}>{at === null ? '--:--' : mmss(at)}</div>
           </div>
         );
       })}
@@ -174,27 +193,25 @@ export function TimelineCard() {
   const order = snap.timeline.map((s) => s.key);
   const phase = order.indexOf(snap.stage) + 1;
   return (
-    <section className="card flex min-h-0 flex-col px-5 pt-4 pb-4">
-      <header className="flex items-center gap-3">
+    <section className="card flex min-h-0 flex-col justify-between px-4 pt-3 pb-3">
+      <header className="flex items-center gap-2.5">
         <button
           type="button"
           onClick={() => {
             void controller.restart('sequence');
             showToast('Replaying the sequence from bloom approach (same seed)', 'info');
           }}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-cyan/40 bg-cyan/10 text-cyan transition-colors hover:bg-cyan/20"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-cyan/40 bg-cyan/10 text-cyan transition-colors hover:bg-cyan/20"
           title="Replay the full sequence from bloom approach (same seed)"
         >
-          <Play size={15} className="translate-x-[1px]" fill="currentColor" />
+          <Play size={12} className="translate-x-[1px]" fill="currentColor" />
         </button>
-        <h3 className="card-title flex-1 truncate">Simulation Timeline</h3>
-        <span className="text-[12.5px] whitespace-nowrap text-muted">
+        <h3 className="card-title flex-1 truncate !text-[15px]">Simulation Timeline</h3>
+        <span className="text-[12px] whitespace-nowrap text-muted">
           Phase {phase} of {order.length}
         </span>
       </header>
-      <div className="mt-auto pt-4">
-        <TimelineTrack />
-      </div>
+      <TimelineTrack size="sm" />
     </section>
   );
 }
@@ -220,19 +237,19 @@ function MiniMetric({
   children: ReactNode;
 }) {
   return (
-    <div className="@container card-inner flex min-w-0 flex-col px-3.5 pt-3 pb-2">
-      <span className="truncate text-[13px] text-ink-2" title={title}>
+    <div className="@container card-inner flex min-w-0 flex-col px-3 pt-2 pb-1.5">
+      <span className="truncate text-[12px] text-ink-2" title={title}>
         <span className="@max-[150px]:hidden">{title}</span>
         <span className="hidden @max-[150px]:inline">{short}</span>
       </span>
-      <span className={cn('num mt-1 truncate text-[24px] leading-none font-medium @max-[130px]:text-[19px]', tone)}>
+      <span className={cn('num mt-0.5 truncate text-[19px] leading-tight font-medium @max-[130px]:text-[16px]', tone)}>
         {value}
-        {unit && <span className="ml-1 text-[13px] text-ink-2 @max-[130px]:text-[11px]">{unit}</span>}
+        {unit && <span className="ml-1 text-[11.5px] text-ink-2 @max-[130px]:text-[10.5px]">{unit}</span>}
       </span>
-      <span className="mt-1 truncate text-[12px] text-muted" title={sub}>
+      <span className="truncate text-[11px] text-muted" title={sub}>
         {sub}
       </span>
-      <div className="mt-auto pt-2">{children}</div>
+      <div className="mt-auto pt-1">{children}</div>
     </div>
   );
 }
@@ -247,7 +264,16 @@ export function KeyMetricsCard() {
   const flow = s.transferFlowM3h * Math.min(1, s.transferUtilisation ?? 0);
   const status = snap.status;
   return (
-    <Panel title="Key Metrics" actions={<Pill>LIVE</Pill>} bodyClassName="grid grid-cols-3 gap-2.5">
+    <Panel
+      dense
+      title="Key Metrics"
+      actions={
+        <Pill className="!h-[22px] !text-[10.5px]">
+          LIVE
+        </Pill>
+      }
+      bodyClassName="grid grid-cols-3 gap-2"
+    >
       <MiniMetric
         title="Jellyfish at Intake"
         short="At intake"
@@ -255,7 +281,7 @@ export function KeyMetricsCard() {
         sub={reduction === null ? 'per minute' : 'vs baseline'}
         tone={reduction !== null && reduction > 0.5 ? 'text-teal' : 'text-amber'}
       >
-        <Sparkline data={hist.map((h) => h.sRate)} secondary={hist.map((h) => h.bRate)} color="#1AA3BE" height={34} min={0} />
+        <Sparkline data={hist.map((h) => h.sRate)} secondary={hist.map((h) => h.bRate)} color="#1AA3BE" height={22} min={0} />
       </MiniMetric>
       <MiniMetric
         title="Transfer Flow"
@@ -265,7 +291,7 @@ export function KeyMetricsCard() {
         sub={s.transferUtilisation === null ? 'idle' : `${Math.round(Math.min(1, s.transferUtilisation) * 100)}% of capacity`}
         tone="text-cyan"
       >
-        <Sparkline data={hist.map((h) => h.flow)} color="#22d3ee" height={34} min={0} />
+        <Sparkline data={hist.map((h) => h.flow)} color="#22d3ee" height={22} min={0} />
       </MiniMetric>
       <MiniMetric
         title="System Status"
@@ -274,7 +300,7 @@ export function KeyMetricsCard() {
         sub={status.detail}
         tone={status.tone === 'alarm' ? 'text-red' : status.tone === 'warn' ? 'text-amber' : status.tone === 'info' ? 'text-cyan' : 'text-amber/90'}
       >
-        <Sparkline data={hist.map((h) => h.load * 100)} color="#f5b94c" height={34} min={0} />
+        <Sparkline data={hist.map((h) => h.load * 100)} color="#f5b94c" height={22} min={0} />
       </MiniMetric>
     </Panel>
   );
@@ -322,11 +348,10 @@ function Thumb({ k, preset, label, compact }: { k: string; preset: Exclude<Camer
       <canvas ref={ref} width={320} height={180} className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
       <div
         className={cn(
-          'absolute inset-x-0 bottom-0 flex items-center gap-2 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-3 pt-6 pb-2 font-medium text-white',
-          compact ? 'text-[12px]' : 'text-[13px]',
+          'absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-2.5 pt-5 pb-1.5 text-[12px] font-medium text-white',
         )}
       >
-        <Camera size={14} /> {label}
+        <Camera size={13} /> {label}
       </div>
     </button>
   );
@@ -337,11 +362,12 @@ export function CameraViewsCard({ compact }: { compact?: boolean }) {
   const views = VIEW_PAGES[page];
   return (
     <Panel
+      dense
       title="Camera Views"
       actions={
         <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1.5 text-[12.5px] text-ink-2">
-            <span className="h-2 w-2 animate-pulse-soft rounded-full bg-green" /> Live feeds
+          <span className="flex items-center gap-1.5 text-[12px] text-ink-2">
+            <span className="h-2 w-2 animate-pulse-soft rounded-full bg-green" /> Live
           </span>
           <div className="flex items-center">
             <button type="button" className="rounded-md p-1 text-muted hover:text-white disabled:opacity-30" disabled={page === 0} onClick={() => setPage(0)} title="Previous views">
@@ -359,7 +385,7 @@ export function CameraViewsCard({ compact }: { compact?: boolean }) {
           </div>
         </div>
       }
-      bodyClassName="grid grid-cols-2 gap-2.5"
+      bodyClassName="grid grid-cols-2 gap-2"
     >
       {views.map((v) => (
         <Thumb key={v.key} k={v.key} preset={v.preset} label={v.label} compact={compact} />

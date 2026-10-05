@@ -15,21 +15,21 @@ export function CurrentCard() {
   if (!p) return null;
   const rel = p.currentBearing - heading;
   return (
-    <div className="glass pointer-events-auto flex items-center gap-3.5 !rounded-2xl px-4 py-3">
-      <div className="relative h-11 w-11 shrink-0 rounded-full border border-cyan/30 bg-base/60">
+    <div data-hud className="glass pointer-events-auto flex items-center gap-2.5 !rounded-xl py-1.5 pr-3.5 pl-1.5" title="Current speed and direction (simulation input)">
+      <div className="relative h-8 w-8 shrink-0 rounded-full border border-cyan/30 bg-base/60">
         <div className="absolute inset-0 flex items-center justify-center" style={{ transform: `rotate(${rel}deg)` }}>
-          <ArrowUp size={20} className="text-cyan" strokeWidth={2.4} />
+          <ArrowUp size={15} className="text-cyan" strokeWidth={2.4} />
         </div>
         <div className="absolute inset-0" style={{ transform: `rotate(${-heading}deg)` }}>
-          <span className="absolute top-[-2px] left-1/2 -translate-x-1/2 text-[9px] font-bold text-red">N</span>
+          <span className="absolute top-[-3px] left-1/2 -translate-x-1/2 text-[8px] font-bold text-red">N</span>
         </div>
       </div>
-      <div className="leading-tight">
-        <div className="text-[12.5px] text-ink-2">Current Speed &amp; Direction</div>
-        <div className="mt-0.5 flex items-baseline gap-2">
-          <span className="num text-[25px] font-medium text-white">{p.currentSpeed.toFixed(2)}</span>
-          <span className="text-[14px] text-ink-2">m/s</span>
-          <span className="num ml-2 text-[15px] text-ink">
+      <div className="leading-none">
+        <div className="text-[10.5px] text-muted">Current</div>
+        <div className="mt-1 flex items-baseline gap-1">
+          <span className="num text-[16px] font-medium text-white">{p.currentSpeed.toFixed(2)}</span>
+          <span className="text-[11px] text-ink-2">m/s</span>
+          <span className="num ml-1.5 text-[12px] text-ink">
             {compassLabel(p.currentBearing)} {p.currentBearing.toFixed(0)}°
           </span>
         </div>
@@ -62,7 +62,7 @@ function ToolIcon({ title, active, onClick, children }: { title: string; active?
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        'inline-flex h-9 w-9 items-center justify-center rounded-lg transition-colors duration-150',
+        'inline-flex h-[30px] w-[30px] items-center justify-center rounded-lg transition-colors duration-150',
         active ? 'bg-cyan/20 text-cyan shadow-[inset_0_0_0_1px_rgba(34,211,238,0.55)]' : 'text-ink-2 hover:bg-white/5 hover:text-white',
       )}
     >
@@ -93,12 +93,12 @@ export function ViewportToolbar({ full }: { full?: boolean }) {
   const moreActive = MORE_PRESETS.find((p) => p.key === ui.camera);
   const segBtn = (active: boolean) =>
     cn(
-      'h-9 rounded-lg px-4 text-[14px] whitespace-nowrap transition-colors duration-150',
-      active ? 'bg-[linear-gradient(180deg,#22c6e0,#129fb8)] font-semibold text-[#03121a] shadow-[0_0_16px_rgba(34,211,238,0.35)]' : 'text-ink-2 hover:text-white',
+      'h-[30px] rounded-lg px-3 text-[13px] whitespace-nowrap transition-colors duration-150',
+      active ? 'bg-[linear-gradient(180deg,#22c6e0,#129fb8)] font-semibold text-[#03121a] shadow-[0_0_12px_rgba(34,211,238,0.3)]' : 'text-ink-2 hover:text-white',
     );
   return (
-    <div className="pointer-events-auto flex items-center gap-2">
-      <div className="glass flex items-center gap-1 !rounded-xl p-1">
+    <div className="pointer-events-auto flex items-center gap-1.5">
+      <div data-hud className="glass flex items-center gap-0.5 !rounded-xl p-[3px]">
         {presets.map((p) => (
           <button key={p.key} type="button" onClick={() => setCamera(p.key)} className={segBtn(ui.camera === p.key && !ui.compare)}>
             {p.label}
@@ -107,10 +107,10 @@ export function ViewportToolbar({ full }: { full?: boolean }) {
         {full && (
           <div className="relative" ref={moreRef}>
             <button type="button" onClick={() => setMoreOpen((o) => !o)} className={cn(segBtn(!!moreActive && !ui.compare), 'flex items-center gap-1 !px-3')}>
-              {moreActive ? moreActive.label : 'More'} <ChevronDown size={14} />
+              {moreActive ? moreActive.label : 'More'} <ChevronDown size={13} />
             </button>
             {moreOpen && (
-              <div className="glass absolute top-[44px] right-0 z-50 w-[170px] animate-fade-in p-1 shadow-2xl">
+              <div className="glass absolute top-[38px] right-0 z-50 w-[170px] animate-fade-in p-1 shadow-2xl">
                 {MORE_PRESETS.map((p) => (
                   <button
                     key={p.key}
@@ -129,25 +129,25 @@ export function ViewportToolbar({ full }: { full?: boolean }) {
           </div>
         )}
       </div>
-      <div className="glass flex items-center gap-0.5 !rounded-xl p-1">
+      <div data-hud className="glass flex items-center gap-0.5 !rounded-xl p-[3px]">
         <ToolIcon title={ui.flowView ? 'Flow View on — show realistic ocean' : 'Flow View — show velocity streamlines'} active={ui.flowView} onClick={() => setUI({ flowView: !ui.flowView })}>
-          <SlidersHorizontal size={17} />
+          <SlidersHorizontal size={15} />
         </ToolIcon>
         {full && (
           <>
             <ToolIcon title={ui.compare ? 'Exit compare mode' : 'Compare Baseline vs SweepLine (same seed)'} active={ui.compare} onClick={() => setUI({ compare: !ui.compare })}>
-              <Split size={17} />
+              <Split size={15} />
             </ToolIcon>
             <ToolIcon title={ui.labels ? 'Hide labels' : 'Show labels'} active={!ui.labels} onClick={() => setUI({ labels: !ui.labels })}>
-              {ui.labels ? <Eye size={17} /> : <EyeOff size={17} />}
+              {ui.labels ? <Eye size={15} /> : <EyeOff size={15} />}
             </ToolIcon>
             <ToolIcon title="Reset view" onClick={() => getScene().resetView()}>
-              <RotateCcw size={17} />
+              <RotateCcw size={15} />
             </ToolIcon>
           </>
         )}
         <ToolIcon title={fs ? 'Exit full screen' : 'Full screen'} onClick={toggleFs}>
-          {fs ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
+          {fs ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
         </ToolIcon>
       </div>
     </div>
@@ -166,18 +166,18 @@ export function CompareOverlay() {
     <div className="pointer-events-none absolute inset-0">
       <div className="absolute top-0 bottom-0 left-1/2 w-px -translate-x-1/2 bg-gradient-to-b from-cyan/0 via-cyan/50 to-cyan/0" />
       <div className="absolute top-3 left-3">
-        <span className="glass block px-2.5 py-1.5 text-[11px] font-semibold tracking-[0.12em] text-ink-2">BASELINE · NO SWEEPLINE</span>
+        <span data-hud className="glass block px-2.5 py-1.5 text-[11px] font-semibold tracking-[0.12em] text-ink-2">BASELINE · NO SWEEPLINE</span>
       </div>
-      <div className="absolute top-[96px] left-[calc(50%+12px)] flex flex-col items-start gap-1">
+      <div data-hud className="absolute top-[52px] left-[calc(50%+12px)] flex flex-col items-start gap-1">
         <span className="glass block border-cyan/40 px-2.5 py-1.5 text-[11px] font-semibold tracking-[0.12em] text-cyan">SWEEPLINE · {snap.curtain.angle}° LAYOUT</span>
         <span className="tag !border-line-strong !bg-base/70">Seed {snap.params.seed} · same bloom</span>
       </div>
-      <div className="absolute right-[calc(50%+12px)] bottom-3 left-3 grid grid-cols-3 gap-2">
+      <div data-hud className="absolute right-[calc(50%+12px)] bottom-3 left-3 grid grid-cols-3 gap-2">
         <CompareStat label="Intake contact" value={pct(b.intakeContactPct)} sub={`n = ${b.resolved}`} tone="alarm" />
         <CompareStat label="Screen loading" value={b.screenLoad} sub={`${b.intakeRatePerMin.toFixed(1)} / min`} tone={b.screenLoad === 'HIGH' ? 'alarm' : b.screenLoad === 'MEDIUM' ? 'warn' : 'ok'} />
         <CompareStat label="Intake contacts" value={String(b.intakeContacts)} sub="cumulative" tone="muted" />
       </div>
-      <div className="absolute right-3 bottom-3 left-[calc(50%+12px)] grid grid-cols-3 gap-2">
+      <div data-hud className="absolute right-3 bottom-3 left-[calc(50%+12px)] grid grid-cols-3 gap-2">
         <CompareStat label="Intake contact" value={pct(s.intakeContactPct)} sub={reduction !== null ? `${pct(-reduction)} vs baseline` : `n = ${s.resolved}`} tone="ok" />
         <CompareStat label="Diversion" value={pct(s.diversionEfficiency)} sub={`${s.diverted} diverted`} tone="info" />
         <CompareStat label="Under-skirt" value={pct(s.underSkirtPct)} sub={`${s.underSkirt} escapes`} tone="warn" />
@@ -209,33 +209,33 @@ export function SafetyBanner() {
   const active = so.phase !== 'IDLE' && so.phase !== 'COMPLETE';
   if (active) {
     return (
-      <div className="glass pointer-events-auto flex animate-fade-in items-center gap-3 border-red/45 px-3.5 py-2 shadow-[0_0_30px_rgba(248,113,113,0.15)]">
-        <span className="relative flex h-2.5 w-2.5">
+      <div data-hud className="glass pointer-events-auto flex animate-fade-in items-center gap-2.5 border-red/45 px-3 py-1.5 shadow-[0_0_24px_rgba(248,113,113,0.14)]">
+        <span className="relative flex h-2 w-2">
           <span className="absolute inset-0 animate-ping rounded-full bg-red/60" />
-          <span className="relative h-2.5 w-2.5 rounded-full bg-red" />
+          <span className="relative h-2 w-2 rounded-full bg-red" />
         </span>
         <div className="leading-tight">
-          <div className="text-[11px] font-semibold tracking-[0.14em] text-red">SAFEOPEN INITIATED</div>
-          <div className="text-[12px] text-ink">{PHASE_LABELS[so.phase]}</div>
+          <div className="text-[10px] font-semibold tracking-[0.14em] text-red">SAFEOPEN</div>
+          <div className="text-[11.5px] text-ink">{PHASE_LABELS[so.phase]}</div>
         </div>
-        <div className="ml-2 border-l border-line-strong pl-3 leading-tight">
-          <div className="text-[10.5px] text-muted">Curtain reefed</div>
-          <div className="num text-[13px] text-amber">{snap.curtain.reefedPct.toFixed(0)}%</div>
+        <div className="ml-1 border-l border-line-strong pl-2.5 leading-tight">
+          <div className="text-[10px] text-muted">Reefed</div>
+          <div className="num text-[12px] text-amber">{snap.curtain.reefedPct.toFixed(0)}%</div>
         </div>
         <div className="leading-tight">
-          <div className="text-[10.5px] text-muted">Elapsed</div>
-          <div className="num text-[13px] text-ink">{mmss(so.elapsed)}</div>
+          <div className="text-[10px] text-muted">Elapsed</div>
+          <div className="num text-[12px] text-ink">{mmss(so.elapsed)}</div>
         </div>
       </div>
     );
   }
   if (so.phase === 'COMPLETE') {
     return (
-      <div className="glass pointer-events-auto flex animate-fade-in items-center gap-3 border-teal/40 px-3.5 py-2">
-        <span className="h-2.5 w-2.5 rounded-full bg-teal" />
+      <div data-hud className="glass pointer-events-auto flex animate-fade-in items-center gap-2.5 border-teal/40 px-3 py-1.5">
+        <span className="h-2 w-2 rounded-full bg-teal" />
         <div className="leading-tight">
-          <div className="text-[11px] font-semibold tracking-[0.14em] text-teal">EXISTING INTAKE PROTECTION RESTORED</div>
-          <div className="text-[12px] text-ink-2">SweepLine reefed upstream-first · Layer 3 screens unchanged</div>
+          <div className="text-[10px] font-semibold tracking-[0.14em] text-teal">INTAKE PROTECTION RESTORED</div>
+          <div className="text-[11.5px] text-ink-2">Reefed upstream-first · existing screens unchanged</div>
         </div>
       </div>
     );
@@ -243,11 +243,11 @@ export function SafetyBanner() {
   if (tr.primary === 'FAULT') {
     const ok = tr.standby === 'ONLINE';
     return (
-      <div className={cn('glass pointer-events-auto flex animate-fade-in items-center gap-3 px-3.5 py-2', ok ? 'border-amber/45' : 'border-red/45')}>
-        <span className={cn('h-2.5 w-2.5 rounded-full', ok ? 'bg-amber' : 'animate-pulse-soft bg-red')} />
+      <div data-hud className={cn('glass pointer-events-auto flex animate-fade-in items-center gap-2.5 px-3 py-1.5', ok ? 'border-amber/45' : 'border-red/45')}>
+        <span className={cn('h-2 w-2 rounded-full', ok ? 'bg-amber' : 'animate-pulse-soft bg-red')} />
         <div className="leading-tight">
-          <div className={cn('text-[11px] font-semibold tracking-[0.14em]', ok ? 'text-amber' : 'text-red')}>TRANSFER FAILURE DETECTED</div>
-          <div className="text-[12px] text-ink">
+          <div className={cn('text-[10px] font-semibold tracking-[0.14em]', ok ? 'text-amber' : 'text-red')}>TRANSFER FAILURE</div>
+          <div className="text-[11.5px] text-ink">
             Primary: <span className="text-red">FAULT</span> · Standby:{' '}
             <span className={tr.standby === 'ONLINE' ? 'text-teal' : tr.standby === 'ACTIVATING' ? 'text-amber' : 'text-red'}>{tr.standby}</span>
           </div>
@@ -257,11 +257,11 @@ export function SafetyBanner() {
   }
   if (snap.status.code === 'OUTSIDE_ENVELOPE') {
     return (
-      <div className="glass pointer-events-auto flex animate-fade-in items-center gap-3 border-red/45 px-3.5 py-2">
-        <span className="h-2.5 w-2.5 animate-pulse-soft rounded-full bg-red" />
+      <div data-hud className="glass pointer-events-auto flex animate-fade-in items-center gap-2.5 border-red/45 px-3 py-1.5">
+        <span className="h-2 w-2 animate-pulse-soft rounded-full bg-red" />
         <div className="leading-tight">
-          <div className="text-[11px] font-semibold tracking-[0.14em] text-red">OUTSIDE VALIDATED OPERATING ENVELOPE</div>
-          <div className="text-[12px] text-ink">{snap.envelope.recommendation === 'DO NOT DEPLOY' ? 'DEPLOYMENT NOT RECOMMENDED' : snap.envelope.recommendation}</div>
+          <div className="text-[10px] font-semibold tracking-[0.14em] text-red">OUTSIDE VALIDATED OPERATING ENVELOPE</div>
+          <div className="text-[11.5px] text-ink">{snap.envelope.recommendation === 'DO NOT DEPLOY' ? 'DEPLOYMENT NOT RECOMMENDED' : snap.envelope.recommendation}</div>
         </div>
       </div>
     );
@@ -294,7 +294,7 @@ export function UnderwaterHud() {
     <>
       <div className="sl-vignette" />
       <div className="pointer-events-none absolute bottom-14 left-4 flex flex-col gap-2">
-        <div className="glass px-3 py-2">
+        <div data-hud className="glass px-3 py-2">
           <div className="flex items-center gap-2 text-[10.5px] font-semibold tracking-[0.14em] text-cyan">
             <Crosshair size={12} /> UNDERWATER · {depth.toFixed(1)} m
           </div>
@@ -331,7 +331,7 @@ export function FlowLegend() {
     ['#ff5c4d', 'Under-skirt / contact'],
   ];
   return (
-    <div className="glass pointer-events-auto px-3 py-2">
+    <div data-hud className="glass pointer-events-auto px-3 py-2">
       <div className="mb-1 flex items-center gap-1.5 text-[10.5px] font-semibold tracking-[0.12em] text-cyan">
         <Workflow size={11} /> FLOW VIEW
       </div>
@@ -359,7 +359,8 @@ export function ViewportFooter() {
   if (compare) return null;
   return (
     <div
-      className="pointer-events-auto absolute right-4 bottom-3 text-right text-[10.5px] text-ink-2/55"
+      data-hud
+      className="pointer-events-auto absolute right-3 bottom-2.5 text-right text-[10.5px] text-ink-2/55"
       title="Reference coastal intake geometry is schematic and not ENEC facility data. Agent-based engineering simulation — not validated field performance. Agents are drawn enlarged at distance for legibility."
     >
       Schematic reference geometry · simulation estimate · agents enlarged for legibility

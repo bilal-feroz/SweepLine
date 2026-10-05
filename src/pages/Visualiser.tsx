@@ -9,34 +9,34 @@ export function Visualiser() {
   const compare = useApp((s) => s.ui.compare);
   return (
     <div className="flex min-w-0 flex-1">
-      <div className="flex min-w-0 flex-1 flex-col gap-4 p-5 min-[1600px]:gap-5 min-[1600px]:p-6">
+      <div className="flex min-w-0 flex-1 flex-col gap-3 p-4 min-[1600px]:p-5">
         <PageHeader
-          eyebrow="3D Visualiser"
+          compact
           title={compare ? 'Baseline vs SweepLine' : 'Live Digital Twin'}
           subtitle={
             compare
-              ? 'Same seed, same bloom, same conditions — both simulations run side by side.'
-              : 'Explore the intake, jellyfish behaviour and system performance in real time.'
+              ? 'Same seed, same bloom, same conditions — both simulations run side by side'
+              : 'Explore the intake, jellyfish behaviour and system performance in real time'
           }
         />
-        <ViewportSlot className="@container min-h-[300px] flex-1 rounded-[18px] border border-line">
+        <ViewportSlot className="@container min-h-[320px] flex-1 rounded-[16px] border border-line">
           <div className="pointer-events-none absolute inset-0 z-10">
             {!compare && (
-              <div className="absolute top-4 left-4 @max-[1000px]:top-[68px]">
+              <div className="absolute top-3 left-3 @max-[760px]:top-[52px]">
                 <CurrentCard />
               </div>
             )}
-            <div className="absolute top-[96px] left-4 @max-[1000px]:top-[150px]">
+            <div className="absolute top-[60px] left-3 @max-[760px]:top-[100px]">
               <SafetyBanner />
             </div>
-            <div className="absolute top-4 right-4">
+            <div className="absolute top-3 right-3">
               <ViewportToolbar full />
             </div>
-            <div className="absolute top-[68px] right-4">
+            <div className="absolute top-[54px] right-3">
               <Inspector />
             </div>
             {!compare && (
-              <div className="absolute bottom-10 left-4">
+              <div className="absolute bottom-9 left-3">
                 <FlowLegend />
               </div>
             )}
@@ -45,12 +45,12 @@ export function Visualiser() {
             <ViewportFooter />
           </div>
         </ViewportSlot>
-        <div className="grid h-[212px] shrink-0 grid-cols-[1fr_1.15fr] gap-4">
+        <div className="grid h-[150px] shrink-0 grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] gap-3">
           <EventLogCard />
           <TimelineWideCard />
         </div>
       </div>
-      <aside className="flex w-[352px] shrink-0 flex-col gap-4 overflow-y-auto py-5 pr-5 min-[1600px]:w-[384px] min-[1600px]:py-6 min-[1600px]:pr-6 [&>*]:shrink-0">
+      <aside className="flex w-[352px] shrink-0 flex-col gap-3 overflow-y-auto py-4 pr-4 min-[1600px]:w-[384px] min-[1600px]:py-5 min-[1600px]:pr-5 [&>*]:shrink-0">
         <OperationsCard />
         <StressTestCard />
         <LiveControlsCard />
