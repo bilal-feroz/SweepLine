@@ -1,15 +1,11 @@
-import { useMediaQuery } from '../app/hooks';
 import { useApp } from '../app/store';
 import { EnvelopeBadge, PageHeader } from '../components/layout/PageHeader';
 import { Inspector } from '../components/panels/Inspector';
 import { CameraViewsCard, KeyMetricsCard, PerformanceRail, TimelineCard } from '../components/panels/OverviewPanels';
 import { CompareOverlay, CurrentCard, FlowLegend, SafetyBanner, UnderwaterHud, ViewportFooter, ViewportToolbar } from '../components/viewport/Hud';
 import { ViewportSlot } from '../components/viewport/ViewportSlot';
-import { cn } from '../utils/format';
 
 export function Overview() {
-  // Below 1600 px the camera feeds move into the rail so the 3D view keeps its width.
-  const wide = useMediaQuery('(min-width: 1600px)');
   const compare = useApp((s) => s.ui.compare);
   return (
     <div className="flex min-w-0 flex-1">
@@ -44,20 +40,14 @@ export function Overview() {
             <ViewportFooter />
           </div>
         </ViewportSlot>
-        <div
-          className={cn(
-            'grid h-[150px] shrink-0 gap-3',
-            wide ? 'grid-cols-[minmax(0,1.3fr)_minmax(0,1.15fr)_minmax(0,0.9fr)]' : 'grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]',
-          )}
-        >
+        <div className="grid h-[150px] shrink-0 grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] gap-3">
           <TimelineCard />
           <KeyMetricsCard />
-          {wide && <CameraViewsCard />}
         </div>
       </div>
-      <aside className="flex w-[304px] shrink-0 flex-col gap-3 overflow-y-auto py-4 pr-4 min-[1600px]:w-[344px] min-[1600px]:py-5 min-[1600px]:pr-5 [&>*]:shrink-0">
-        <PerformanceRail compact={!wide} />
-        {!wide && <CameraViewsCard compact />}
+      <aside className="flex w-[320px] shrink-0 flex-col gap-3 overflow-y-auto py-4 pr-4 min-[1600px]:w-[360px] min-[1600px]:py-5 min-[1600px]:pr-5 [&>*]:shrink-0">
+        <PerformanceRail />
+        <CameraViewsCard />
       </aside>
     </div>
   );

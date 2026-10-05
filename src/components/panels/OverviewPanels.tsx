@@ -1,5 +1,5 @@
-import { Camera, ChevronLeft, ChevronRight, CircleGauge, Play, ShieldCheck, Waves } from 'lucide-react';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Camera, CircleGauge, Play, ShieldCheck, Waves } from 'lucide-react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { getScene } from '../../app/runtime';
 import { useHistory, useSnap } from '../../app/hooks';
 import { useApp } from '../../app/store';
@@ -8,52 +8,46 @@ import type { CameraPreset } from '../../three/cameras/CameraRig';
 import { cn, mmss, pct } from '../../utils/format';
 import { Sparkline } from '../charts/Sparkline';
 import { Icon } from '../ui/icons';
-import { Bar, IconTile, Panel, Pill, type TileTone } from '../ui/Panel';
+import { Bar, Panel, Pill } from '../ui/Panel';
 
-// ---------------------------------------------------------------- performance rail
+// ---------------------------------------------------------------- performance
 
-function RailMetric({
+type BarTone = 'ok' | 'info' | 'warn' | 'alarm';
+
+function PerfTile({
   icon,
-  tone = 'cyan',
   label,
   value,
   valueTone,
   aside,
   bar,
   barTone,
-  compact,
 }: {
   icon: ReactNode;
-  tone?: TileTone;
   label: string;
   value: string;
   valueTone: string;
   aside: ReactNode;
   bar: number;
-  barTone: 'ok' | 'info' | 'warn' | 'alarm';
-  compact?: boolean;
+  barTone: BarTone;
 }) {
   return (
-    <div className={cn('card-inner flex items-center gap-4 px-4', compact ? 'py-3' : 'py-4')}>
-      <IconTile size={compact ? 44 : 50} tone={tone}>
-        {icon}
-      </IconTile>
-      <div className="min-w-0 flex-1">
-        <div className="text-[14.5px] text-ink">{label}</div>
-        <div className="mt-0.5 flex items-end justify-between gap-2">
-          <span className={cn('leading-none font-semibold tracking-tight', compact ? 'text-[26px]' : 'text-[30px]', valueTone)}>{value}</span>
-          <span className="pb-0.5 text-right text-[12.5px] text-muted">{aside}</span>
-        </div>
-        <div className="mt-2.5">
-          <Bar value={bar} tone={barTone} thick />
-        </div>
+    <div className="card-inner flex min-w-0 flex-col gap-1 px-3 pt-2.5 pb-3">
+      <div className="flex items-center gap-1.5 text-[12px] text-ink-2">
+        <span className="flex shrink-0 text-muted">{icon}</span>
+        <span className="truncate">{label}</span>
+      </div>
+      <span className={cn('text-[22px] leading-none font-semibold tracking-tight', valueTone)}>{value}</span>
+      <span className="truncate text-[11px] text-muted">{aside}</span>
+      <div className="mt-0.5">
+        <Bar value={bar} tone={barTone} />
       </div>
     </div>
   );
 }
 
-/** Real-time SweepLine performance (simulation estimates). */
-export function PerformanceRail({ compact }: { compact?: boolean }) {
+/** Real-time SweepLine performance as a compact 2 × 2 tile grid (simulation estimates). */
+export function PerformanceRail() {
   const snap = useSnap();
   if (!snap) return null;
   const s = snap.sweepline;
@@ -73,51 +67,47 @@ export function PerformanceRail({ compact }: { compact?: boolean }) {
           LIVE
         </Pill>
       }
-      bodyClassName="flex flex-col gap-2.5"
+      bodyClassName="flex flex-col gap-2"
     >
-      <RailMetric
-        compact={compact}
-        icon={<CircleGauge size={26} strokeWidth={1.5} />}
-        label="Diversion Efficiency"
-        value={pct(eff)}
-        valueTone={eff === null ? 'text-muted' : eff >= 0.8 ? 'text-cyan' : eff >= 0.6 ? 'text-amber' : 'text-red'}
-        aside="Target ≥ 80%"
-        bar={eff ?? 0}
-        barTone={eff !== null && eff < 0.6 ? 'alarm' : 'info'}
-      />
-      <RailMetric
-        compact={compact}
-        icon={<Waves size={26} strokeWidth={1.5} />}
-        label="Under-skirt Escape"
-        value={pct(under)}
-        valueTone={under === null ? 'text-muted' : under <= 0.1 ? 'text-cyan' : under <= 0.2 ? 'text-amber' : 'text-red'}
-        aside="Target ≤ 10%"
-        bar={Math.min(1, (under ?? 0) * 2.5)}
-        barTone={under !== null && under > 0.2 ? 'alarm' : under !== null && under > 0.1 ? 'warn' : 'info'}
-      />
-      <RailMetric
-        compact={compact}
-        icon={<ShieldCheck size={26} strokeWidth={1.5} />}
-        tone={risk === 'HIGH' ? 'red' : risk === 'MEDIUM' ? 'amber' : 'teal'}
-        label="Intake Risk"
-        value={risk}
-        valueTone={risk === 'HIGH' ? 'text-red' : risk === 'MEDIUM' ? 'text-amber' : 'text-teal'}
-        aside={reduction === null ? 'vs baseline —' : `${pct(-reduction)} vs baseline`}
-        bar={risk === 'HIGH' ? 0.9 : risk === 'MEDIUM' ? 0.55 : 0.25}
-        barTone={risk === 'HIGH' ? 'alarm' : risk === 'MEDIUM' ? 'warn' : 'ok'}
-      />
-      <RailMetric
-        compact={compact}
-        icon={<Icon name="curtain" size={26} strokeWidth={1.5} />}
-        tone={s.curtainLoadLabel === 'OVERLOAD' ? 'red' : s.curtainLoadLabel === 'HIGH' ? 'amber' : 'teal'}
-        label="Curtain Load"
-        value={loadLabel}
-        valueTone={s.curtainLoadLabel === 'OVERLOAD' ? 'text-red' : s.curtainLoadLabel === 'HIGH' ? 'text-amber' : s.curtainLoadLabel === 'INACTIVE' ? 'text-muted' : 'text-teal'}
-        aside={`${(load * 100).toFixed(0)}% of limit`}
-        bar={Math.min(1, load)}
-        barTone={load >= 1 ? 'alarm' : load >= 0.8 ? 'warn' : 'ok'}
-      />
-      <p className="px-1 text-[11.5px] leading-relaxed text-dim">Simulation estimates from the agent model (same seed as the baseline). Not field-validated.</p>
+      <div className="grid grid-cols-2 gap-2">
+        <PerfTile
+          icon={<CircleGauge size={14} />}
+          label="Diversion"
+          value={pct(eff)}
+          valueTone={eff === null ? 'text-muted' : eff >= 0.8 ? 'text-cyan' : eff >= 0.6 ? 'text-amber' : 'text-red'}
+          aside="Target ≥ 80%"
+          bar={eff ?? 0}
+          barTone={eff !== null && eff < 0.6 ? 'alarm' : 'info'}
+        />
+        <PerfTile
+          icon={<Waves size={14} />}
+          label="Under-skirt"
+          value={pct(under)}
+          valueTone={under === null ? 'text-muted' : under <= 0.1 ? 'text-cyan' : under <= 0.2 ? 'text-amber' : 'text-red'}
+          aside="Target ≤ 10%"
+          bar={Math.min(1, (under ?? 0) * 2.5)}
+          barTone={under !== null && under > 0.2 ? 'alarm' : under !== null && under > 0.1 ? 'warn' : 'info'}
+        />
+        <PerfTile
+          icon={<ShieldCheck size={14} />}
+          label="Intake risk"
+          value={risk}
+          valueTone={risk === 'HIGH' ? 'text-red' : risk === 'MEDIUM' ? 'text-amber' : 'text-teal'}
+          aside={reduction === null ? 'vs baseline —' : `${pct(-reduction)} vs baseline`}
+          bar={risk === 'HIGH' ? 0.9 : risk === 'MEDIUM' ? 0.55 : 0.25}
+          barTone={risk === 'HIGH' ? 'alarm' : risk === 'MEDIUM' ? 'warn' : 'ok'}
+        />
+        <PerfTile
+          icon={<Icon name="curtain" size={14} />}
+          label="Curtain load"
+          value={loadLabel}
+          valueTone={s.curtainLoadLabel === 'OVERLOAD' ? 'text-red' : s.curtainLoadLabel === 'HIGH' ? 'text-amber' : s.curtainLoadLabel === 'INACTIVE' ? 'text-muted' : 'text-teal'}
+          aside={`${(load * 100).toFixed(0)}% of limit`}
+          bar={Math.min(1, load)}
+          barTone={load >= 1 ? 'alarm' : load >= 0.8 ? 'warn' : 'ok'}
+        />
+      </div>
+      <p className="px-0.5 text-[11px] text-dim">Simulation estimates (same seed as baseline) — not field-validated.</p>
     </Panel>
   );
 }
@@ -308,19 +298,16 @@ export function KeyMetricsCard() {
 
 // ---------------------------------------------------------------- camera views
 
-const VIEW_PAGES: Array<Array<{ key: string; preset: Exclude<CameraPreset, 'free'>; label: string }>> = [
-  [
-    { key: 'thumb-aerial', preset: 'aerial', label: 'Aerial View' },
-    { key: 'thumb-underwater', preset: 'underwater', label: 'Underwater Curtain' },
-  ],
-  [
-    { key: 'thumb-intake', preset: 'intake', label: 'Intake Screens' },
-    { key: 'thumb-throat', preset: 'throat', label: 'Recovery Throat' },
-  ],
+const VIEWS: Array<{ key: string; preset: Exclude<CameraPreset, 'free'>; label: string; title: string }> = [
+  { key: 'thumb-aerial', preset: 'aerial', label: 'Aerial', title: 'Aerial view' },
+  { key: 'thumb-underwater', preset: 'underwater', label: 'Underwater', title: 'Underwater curtain' },
+  { key: 'thumb-intake', preset: 'intake', label: 'Intake', title: 'Intake screens' },
+  { key: 'thumb-throat', preset: 'throat', label: 'Throat', title: 'Recovery throat' },
 ];
 
-function Thumb({ k, preset, label, compact }: { k: string; preset: Exclude<CameraPreset, 'free'>; label: string; compact?: boolean }) {
+function Thumb({ k, preset, label, title }: { k: string; preset: Exclude<CameraPreset, 'free'>; label: string; title: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const boxRef = useRef<HTMLButtonElement>(null);
   const camera = useApp((s) => s.ui.camera);
   const setCamera = useApp((s) => s.setCamera);
   const setUI = useApp((s) => s.setUI);
@@ -330,66 +317,60 @@ function Thumb({ k, preset, label, compact }: { k: string; preset: Exclude<Camer
     getScene().registerThumbnail(k, c, preset);
     return () => getScene().unregisterThumbnail(k);
   }, [k, preset]);
+  // The scene sizes each feed to its tile before rendering; re-render promptly when the tile changes size.
+  useEffect(() => {
+    const box = boxRef.current;
+    if (!box) return;
+    const ro = new ResizeObserver(() => getScene().refreshThumbnail(k));
+    ro.observe(box);
+    return () => ro.disconnect();
+  }, [k]);
   const active = camera === preset;
   return (
     <button
+      ref={boxRef}
       type="button"
       onClick={() => {
         setUI({ compare: false });
         setCamera(preset);
       }}
       className={cn(
-        'group relative min-h-0 overflow-hidden rounded-xl border bg-[#0a1a24] transition-all duration-200',
-        compact && 'aspect-video',
+        'group relative h-full min-h-0 w-full overflow-hidden rounded-xl border bg-[#0a1a24] transition-all duration-200',
         active ? 'border-cyan/80 shadow-[0_0_0_1px_rgba(34,211,238,0.45),0_0_18px_rgba(34,211,238,0.25)]' : 'border-line-strong hover:border-cyan/45',
       )}
-      title={`Switch the 3D camera to ${label}`}
+      title={`Switch the 3D camera to ${title.toLowerCase()}`}
     >
-      <canvas ref={ref} width={320} height={180} className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
-      <div
-        className={cn(
-          'absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-2.5 pt-5 pb-1.5 text-[12px] font-medium text-white',
-        )}
-      >
+      <canvas ref={ref} width={320} height={240} className="absolute inset-0 h-full w-full transition-transform duration-300 group-hover:scale-[1.03]" />
+      <div className="absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-black/80 via-black/40 to-transparent px-2.5 pt-5 pb-1.5 text-[12px] font-medium text-white">
         <Camera size={13} /> {label}
       </div>
     </button>
   );
 }
 
-export function CameraViewsCard({ compact }: { compact?: boolean }) {
-  const [page, setPage] = useState(0);
-  const views = VIEW_PAGES[page];
+/**
+ * All four live camera feeds; clicking one moves the main 3D camera there.
+ * A 2 × 2 grid in the narrow rail; on wide screens one column that fills the rail height.
+ */
+export function CameraViewsCard() {
   return (
     <Panel
       dense
+      className="min-[1600px]:flex-1"
       title="Camera Views"
       actions={
-        <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1.5 text-[12px] text-ink-2">
-            <span className="h-2 w-2 animate-pulse-soft rounded-full bg-green" /> Live
-          </span>
-          <div className="flex items-center">
-            <button type="button" className="rounded-md p-1 text-muted hover:text-white disabled:opacity-30" disabled={page === 0} onClick={() => setPage(0)} title="Previous views">
-              <ChevronLeft size={16} />
-            </button>
-            <button
-              type="button"
-              className="rounded-md p-1 text-muted hover:text-white disabled:opacity-30"
-              disabled={page === VIEW_PAGES.length - 1}
-              onClick={() => setPage(1)}
-              title="More views"
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
-        </div>
+        <span className="flex items-center gap-1.5 text-[12px] text-ink-2">
+          <span className="h-2 w-2 animate-pulse-soft rounded-full bg-green" /> Live feeds
+        </span>
       }
-      bodyClassName="grid grid-cols-2 gap-2"
+      bodyClassName="@container flex flex-col"
     >
-      {views.map((v) => (
-        <Thumb key={v.key} k={v.key} preset={v.preset} label={v.label} compact={compact} />
-      ))}
+      {/* Narrow rail: rows are 44% of the card width (landscape tiles). Wide: four rows share the height. */}
+      <div className="grid flex-1 grid-cols-2 gap-2 [grid-template-rows:repeat(2,44cqw)] min-[1600px]:grid-cols-1 min-[1600px]:[grid-template-rows:repeat(4,minmax(72px,1fr))]">
+        {VIEWS.map((v) => (
+          <Thumb key={v.key} k={v.key} preset={v.preset} label={v.label} title={v.title} />
+        ))}
+      </div>
     </Panel>
   );
 }

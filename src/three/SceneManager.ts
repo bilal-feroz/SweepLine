@@ -72,6 +72,8 @@ export class SceneManager {
   private ui: UIState;
   private snap: SimSnapshot | null = null;
   private readonly thumbs = new Map<string, Thumb>();
+  /** Feeds to render on the next frame (just added or resized). */
+  private readonly dirtyThumbs = new Set<string>();
   private thumbTimer = 0;
   private thumbIndex = 0;
   private infoTimer = 0;
@@ -300,11 +302,18 @@ export class SceneManager {
     if (!ctx) return;
     const cam = new THREE.PerspectiveCamera(48, canvas.width / canvas.height, 0.12, 12000);
     this.thumbs.set(key, { canvas, ctx, preset, camera: cam });
+    this.dirtyThumbs.add(key);
     this.thumbTimer = 0;
+  }
+
+  /** Re-render a feed on the next frame (e.g. after its canvas was resized). */
+  refreshThumbnail(key: string): void {
+    if (this.thumbs.has(key)) this.dirtyThumbs.add(key);
   }
 
   unregisterThumbnail(key: string): void {
     this.thumbs.delete(key);
+    this.dirtyThumbs.delete(key);
   }
 
   // ------------------------------------------------------------------ store sync
@@ -696,12 +705,33 @@ export class SceneManager {
 
   private renderThumbnails(dt: number, worlds: EngineKind[]): void {
     if (this.thumbs.size === 0) return;
-    this.thumbTimer -= dt;
-    if (this.thumbTimer > 0) return;
-    this.thumbTimer = 0.5;
-    const list = [...this.thumbs.values()];
-    const th = list[this.thumbIndex % list.length];
-    this.thumbIndex++;
+    // A just-added or resized feed renders immediately; otherwise feeds refresh in turn.
+    let th: Thumb | undefined;
+    const next = this.dirtyThumbs.values().next();
+    if (!next.done) {
+      this.dirtyThumbs.delete(next.value);
+      th = this.thumbs.get(next.value);
+    }
+    if (!th) {
+      this.thumbTimer -= dt;
+      if (this.thumbTimer > 0) return;
+      this.thumbTimer = 0.35;
+      const list = [...this.thumbs.values()];
+      th = list[this.thumbIndex % list.length];
+      this.thumbIndex++;
+    }
+    // Match the feed's resolution and shape to its on-screen tile (no stretching or cropping).
+    const cw = th.canvas.clientWidth;
+    const ch = th.canvas.clientHeight;
+    if (cw > 0 && ch > 0) {
+      const scale = Math.min(window.devicePixelRatio || 1, 1.5);
+      const w = Math.max(64, Math.round(cw * scale));
+      const h = Math.max(48, Math.round(ch * scale));
+      if (th.canvas.width !== w || th.canvas.height !== h) {
+        th.canvas.width = w;
+        th.canvas.height = h;
+      }
+    }
     const layout = this.ctrl.sweepline.curtain!.layout;
     const pose = presetPose(th.preset, layout);
     th.camera.position.copy(pose.pos);
