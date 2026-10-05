@@ -1,23 +1,12 @@
-import {
-  ArrowUp,
-  Crosshair,
-  Eye,
-  EyeOff,
-  Maximize2,
-  Minimize2,
-  RotateCcw,
-  Split,
-  Wind,
-  Workflow,
-} from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { ArrowUp, ChevronDown, Crosshair, Eye, EyeOff, Maximize2, Minimize2, RotateCcw, SlidersHorizontal, Split, Workflow } from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { getScene } from '../../app/runtime';
 import { useApp } from '../../app/store';
 import { compassLabel } from '../../config/site';
 import { PHASE_LABELS } from '../../simulation/SimController';
 import { CAMERA_PRESETS, type CameraPreset } from '../../three/cameras/CameraRig';
 import { cn, mmss, pct } from '../../utils/format';
-import { IconButton } from '../ui/Controls';
+import { useOutsideClose } from '../layout/TopBar';
 
 /** Current direction & speed card with a compass that follows the camera heading. */
 export function CurrentCard() {
@@ -26,21 +15,21 @@ export function CurrentCard() {
   if (!p) return null;
   const rel = p.currentBearing - heading;
   return (
-    <div className="glass pointer-events-auto flex items-center gap-3 px-3 py-2">
-      <div className="relative h-9 w-9 shrink-0 rounded-full border border-line-strong bg-base/50">
+    <div className="glass pointer-events-auto flex items-center gap-3.5 !rounded-2xl px-4 py-3">
+      <div className="relative h-11 w-11 shrink-0 rounded-full border border-cyan/30 bg-base/60">
         <div className="absolute inset-0 flex items-center justify-center" style={{ transform: `rotate(${rel}deg)` }}>
-          <ArrowUp size={18} className="text-cyan" strokeWidth={2.4} />
+          <ArrowUp size={20} className="text-cyan" strokeWidth={2.4} />
         </div>
         <div className="absolute inset-0" style={{ transform: `rotate(${-heading}deg)` }}>
-          <span className="absolute top-[-1px] left-1/2 -translate-x-1/2 text-[8px] font-bold text-red">N</span>
+          <span className="absolute top-[-2px] left-1/2 -translate-x-1/2 text-[9px] font-bold text-red">N</span>
         </div>
       </div>
       <div className="leading-tight">
-        <div className="text-[10.5px] text-muted">Current Direction &amp; Speed</div>
-        <div className="num text-[17px] text-ink">
-          {p.currentSpeed.toFixed(2)}
-          <span className="ml-1 text-[11px] text-ink-2">m/s</span>
-          <span className="ml-2 text-[11px] text-muted">
+        <div className="text-[12.5px] text-ink-2">Current Speed &amp; Direction</div>
+        <div className="mt-0.5 flex items-baseline gap-2">
+          <span className="num text-[25px] font-medium text-white">{p.currentSpeed.toFixed(2)}</span>
+          <span className="text-[14px] text-ink-2">m/s</span>
+          <span className="num ml-2 text-[15px] text-ink">
             {compassLabel(p.currentBearing)} {p.currentBearing.toFixed(0)}°
           </span>
         </div>
@@ -49,11 +38,38 @@ export function CurrentCard() {
   );
 }
 
-const SHORT_PRESETS: Array<{ key: CameraPreset; label: string }> = [
+const OVERVIEW_PRESETS: Array<{ key: CameraPreset; label: string }> = [
   { key: 'top', label: 'Top View' },
   { key: 'aerial', label: 'Perspective' },
   { key: 'underwater', label: 'Underwater' },
 ];
+
+const MAIN_PRESETS: Array<{ key: CameraPreset; label: string }> = [
+  { key: 'aerial', label: 'Perspective' },
+  { key: 'top', label: 'Top' },
+  { key: 'underwater', label: 'Underwater' },
+  { key: 'curtain', label: 'Curtain' },
+];
+
+const MORE_PRESETS = CAMERA_PRESETS.filter((p) => !MAIN_PRESETS.some((m) => m.key === p.key));
+
+function ToolIcon({ title, active, onClick, children }: { title: string; active?: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        'inline-flex h-9 w-9 items-center justify-center rounded-lg transition-colors duration-150',
+        active ? 'bg-cyan/20 text-cyan shadow-[inset_0_0_0_1px_rgba(34,211,238,0.55)]' : 'text-ink-2 hover:bg-white/5 hover:text-white',
+      )}
+    >
+      {children}
+    </button>
+  );
+}
 
 /** Camera preset switcher and viewport tools. */
 export function ViewportToolbar({ full }: { full?: boolean }) {
@@ -61,53 +77,78 @@ export function ViewportToolbar({ full }: { full?: boolean }) {
   const setUI = useApp((s) => s.setUI);
   const setCamera = useApp((s) => s.setCamera);
   const [fs, setFs] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useOutsideClose(moreOpen, () => setMoreOpen(false));
   useEffect(() => {
     const h = () => setFs(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', h);
     return () => document.removeEventListener('fullscreenchange', h);
   }, []);
-  const presets = full ? CAMERA_PRESETS : SHORT_PRESETS;
+  const presets = full ? MAIN_PRESETS : OVERVIEW_PRESETS;
   const toggleFs = () => {
     const el = document.querySelector('[data-viewport]') as HTMLElement | null;
     if (!document.fullscreenElement && el) void el.requestFullscreen();
     else void document.exitFullscreen();
   };
+  const moreActive = MORE_PRESETS.find((p) => p.key === ui.camera);
+  const segBtn = (active: boolean) =>
+    cn(
+      'h-9 rounded-lg px-4 text-[14px] whitespace-nowrap transition-colors duration-150',
+      active ? 'bg-[linear-gradient(180deg,#22c6e0,#129fb8)] font-semibold text-[#03121a] shadow-[0_0_16px_rgba(34,211,238,0.35)]' : 'text-ink-2 hover:text-white',
+    );
   return (
-    <div className={cn('pointer-events-auto flex gap-1.5', full ? 'flex-col items-end' : 'items-center')}>
-      <div className="glass flex items-center gap-0.5 p-[3px]">
+    <div className="pointer-events-auto flex items-center gap-2">
+      <div className="glass flex items-center gap-1 !rounded-xl p-1">
         {presets.map((p) => (
-          <button
-            key={p.key}
-            type="button"
-            onClick={() => setCamera(p.key)}
-            className={cn(
-              'h-[26px] rounded-md px-2.5 text-[12px] transition-colors duration-150',
-              ui.camera === p.key && !ui.compare ? 'bg-cyan/20 text-white shadow-[inset_0_0_0_1px_rgba(34,211,238,0.5)]' : 'text-ink-2 hover:text-white',
-            )}
-          >
+          <button key={p.key} type="button" onClick={() => setCamera(p.key)} className={segBtn(ui.camera === p.key && !ui.compare)}>
             {p.label}
           </button>
         ))}
-        {ui.camera === 'free' && <span className="px-2 text-[11px] text-muted">Free camera</span>}
+        {full && (
+          <div className="relative" ref={moreRef}>
+            <button type="button" onClick={() => setMoreOpen((o) => !o)} className={cn(segBtn(!!moreActive && !ui.compare), 'flex items-center gap-1 !px-3')}>
+              {moreActive ? moreActive.label : 'More'} <ChevronDown size={14} />
+            </button>
+            {moreOpen && (
+              <div className="glass absolute top-[44px] right-0 z-50 w-[170px] animate-fade-in p-1 shadow-2xl">
+                {MORE_PRESETS.map((p) => (
+                  <button
+                    key={p.key}
+                    type="button"
+                    onClick={() => {
+                      setCamera(p.key);
+                      setMoreOpen(false);
+                    }}
+                    className={cn('flex w-full rounded-md px-3 py-2 text-left text-[13px] hover:bg-panel-3', ui.camera === p.key ? 'text-cyan' : 'text-ink-2')}
+                  >
+                    {p.label} camera
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
-      <div className="flex items-center gap-1.5">
-      <IconButton title={ui.flowView ? 'Flow View on — show realistic ocean' : 'Flow View — show velocity streamlines'} active={ui.flowView} onClick={() => setUI({ flowView: !ui.flowView })}>
-        <Wind size={15} />
-      </IconButton>
-      {full && (
-        <IconButton title={ui.compare ? 'Exit compare mode' : 'Compare Baseline vs SweepLine (same seed)'} active={ui.compare} onClick={() => setUI({ compare: !ui.compare })}>
-          <Split size={15} />
-        </IconButton>
-      )}
-      <IconButton title={ui.labels ? 'Hide labels' : 'Show labels'} active={ui.labels} onClick={() => setUI({ labels: !ui.labels })}>
-        {ui.labels ? <Eye size={15} /> : <EyeOff size={15} />}
-      </IconButton>
-      <IconButton title="Reset view" onClick={() => getScene().resetView()}>
-        <RotateCcw size={15} />
-      </IconButton>
-      <IconButton title={fs ? 'Exit full screen' : 'Full screen'} onClick={toggleFs}>
-        {fs ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
-      </IconButton>
+      <div className="glass flex items-center gap-0.5 !rounded-xl p-1">
+        <ToolIcon title={ui.flowView ? 'Flow View on — show realistic ocean' : 'Flow View — show velocity streamlines'} active={ui.flowView} onClick={() => setUI({ flowView: !ui.flowView })}>
+          <SlidersHorizontal size={17} />
+        </ToolIcon>
+        {full && (
+          <>
+            <ToolIcon title={ui.compare ? 'Exit compare mode' : 'Compare Baseline vs SweepLine (same seed)'} active={ui.compare} onClick={() => setUI({ compare: !ui.compare })}>
+              <Split size={17} />
+            </ToolIcon>
+            <ToolIcon title={ui.labels ? 'Hide labels' : 'Show labels'} active={!ui.labels} onClick={() => setUI({ labels: !ui.labels })}>
+              {ui.labels ? <Eye size={17} /> : <EyeOff size={17} />}
+            </ToolIcon>
+            <ToolIcon title="Reset view" onClick={() => getScene().resetView()}>
+              <RotateCcw size={17} />
+            </ToolIcon>
+          </>
+        )}
+        <ToolIcon title={fs ? 'Exit full screen' : 'Full screen'} onClick={toggleFs}>
+          {fs ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
+        </ToolIcon>
       </div>
     </div>
   );
@@ -312,15 +353,16 @@ export function FlowLegend() {
   );
 }
 
-/** Footer notes inside the viewport. */
+/** Footer note inside the viewport. */
 export function ViewportFooter() {
   const compare = useApp((s) => s.ui.compare);
   if (compare) return null;
   return (
-    <div className="pointer-events-none absolute right-3 bottom-2 text-right text-[10px] leading-tight text-ink-2/60">
-      Reference coastal intake geometry — schematic, not ENEC facility data.
-      <br />
-      Agent-based engineering simulation — not validated field performance. Agents enlarged with distance for legibility.
+    <div
+      className="pointer-events-auto absolute right-4 bottom-3 text-right text-[10.5px] text-ink-2/55"
+      title="Reference coastal intake geometry is schematic and not ENEC facility data. Agent-based engineering simulation — not validated field performance. Agents are drawn enlarged at distance for legibility."
+    >
+      Schematic reference geometry · simulation estimate · agents enlarged for legibility
     </div>
   );
 }

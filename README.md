@@ -198,8 +198,8 @@ computed by the agent model, never scripted.
 
 ## Standby transfer line
 
-- **In the app:** 3D Visualiser → *Safety* tab → *Transfer System* → **Standby transfer path armed**.
-  Disarm it, then *Inject transfer failure*: with no standby, SafeOpen starts immediately.
+- **In the app:** 3D Visualiser → right rail → *Transfer System* card → **Standby transfer path armed**.
+  Disarm it, then use *Stress Test* → *Transfer failure*: with no standby, SafeOpen starts immediately.
 - **Default:** `standbyEnabled` in `DEFAULT_PARAMS` (`src/simulation/types.ts`); scenarios can
   override it in their `params`.
 - **Behaviour:** `standbyActivationTime` and `passiveDrainFraction` (the residual open-flow line used

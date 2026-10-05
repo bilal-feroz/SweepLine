@@ -4,7 +4,7 @@ import type { SimulationEngine } from '../../simulation/SimulationEngine';
 import { MEDIUM_GLSL, SHARED } from '../environment/shaderChunks';
 
 /** Distance-based legibility scaling: true scale up close, enlarged at aerial distances. */
-export const LEGIBILITY = { start: 10, perMetre: 1 / 28, max: 6 };
+export const LEGIBILITY = { start: 10, perMetre: 1 / 25, max: 7 };
 
 export function jellyShader(map: THREE.Texture | null): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({

@@ -23,6 +23,7 @@ import { CurrentField } from './systems/CurrentField';
 import { CurtainSystem } from './systems/CurtainSystem';
 import { jellyShader, JellyfishSystem } from './systems/JellyfishSystem';
 import { LabelSystem, type LabelViewport } from './systems/LabelSystem';
+import { iconSvg } from '../components/ui/icons';
 import { ReleaseSystem } from './systems/ReleaseSystem';
 import { TransferSystem } from './systems/TransferSystem';
 
@@ -320,7 +321,8 @@ export class SceneManager {
     }
     if (ui.flowView !== prev.flowView) this.applyFlowView(ui.flowView);
     this.labels.enabled = ui.labels;
-    this.labels.topReserved = ui.page === 'visualiser' ? 100 : 60;
+    this.labels.topReserved = 76;
+    this.labels.page = ui.page;
     for (const w of WORLDS) this.jellies[w].selectedId = ui.selection?.kind === 'jelly' && ui.selection.engine === w ? ui.selection.agentId ?? -1 : -1;
     if (!ui.follow || ui.selection?.kind !== 'jelly') this.rig.followTarget = null;
   }
@@ -348,7 +350,7 @@ export class SceneManager {
         : mode === 'REEFING' || mode === 'REEFED'
           ? `Reefing · ${s.curtain.reefedPct.toFixed(0)}% reefed`
           : `${s.curtain.angle}° anchor layout · ${s.curtain.skirtActual.toFixed(1)} m skirt`;
-    this.labels.setContent('curtain', 'Angled Guide Curtain', curtainBody, mode === 'REEFING' || mode === 'REEFED' ? 'amber' : 'default');
+    this.labels.setContent('curtain', 'Guide Curtain', curtainBody, mode === 'REEFING' || mode === 'REEFED' ? 'amber' : 'default');
     const occ = sw.throatOccupancy;
     this.labels.setContent(
       'throat',
@@ -370,7 +372,7 @@ export class SceneManager {
     this.labels.setContent('intake-base', 'Intake Screens', intakeBody(b), b.screenLoad === 'HIGH' ? 'red' : b.screenLoad === 'MEDIUM' ? 'amber' : 'default');
     this.labels.setContent('intake-left', 'Intake Screens', intakeBody(b), b.screenLoad === 'HIGH' ? 'red' : 'amber');
     this.labels.setContent('intake-right', 'Intake Screens', intakeBody(sw), sw.screenLoad === 'HIGH' ? 'red' : sw.screenLoad === 'MEDIUM' ? 'amber' : 'teal');
-    this.labels.setContent('release', 'Safe Release', `Down-current · ${s.params.releaseDistance} m line (assumption)`, 'teal');
+    this.labels.setContent('release', 'Safe Release', `Down-current · ${s.params.releaseDistance} m line`, 'default');
     this.labels.setContent('skirt-dim', 'Skirt depth', `${s.curtain.skirtActual.toFixed(1)} m`, 'cyan');
     this.labels.setContent('bloom-p90', 'Bloom P90 depth', `${s.bloom.p90.toFixed(1)} m`, s.bloom.p90 > s.curtain.skirtActual ? 'amber' : 'teal');
   }
@@ -381,6 +383,7 @@ export class SceneManager {
     this.labels.add({
       id: 'bloom',
       title: 'Jellyfish Bloom',
+      icon: iconSvg('jellyfish', 22),
       anchor: () => (this.bloomAnchorValid ? this.bloomAnchor : null),
       viewports: ['single', 'base'],
       view: above,
@@ -389,7 +392,8 @@ export class SceneManager {
     });
     this.labels.add({
       id: 'curtain',
-      title: 'Angled Guide Curtain',
+      title: 'Guide Curtain',
+      icon: iconSvg('curtain', 22),
       anchor: () => {
         const p = pointAtArc(layout(), layout().length * 0.36);
         return this.tmpAnchor('curtain', p.x, 1.2, p.z);
@@ -401,6 +405,7 @@ export class SceneManager {
     this.labels.add({
       id: 'throat',
       title: 'Recovery Throat',
+      icon: iconSvg('throat', 22),
       anchor: () => this.transfer.anchors().throat,
       viewports: ['single'],
       view: above,
@@ -409,6 +414,8 @@ export class SceneManager {
     this.labels.add({
       id: 'transfer',
       title: 'Transfer Module',
+      icon: iconSvg('transfer', 22),
+      pages: ['visualiser', 'system'],
       anchor: () => this.transfer.anchors().transferLow,
       viewports: ['single'],
       view: above,
@@ -422,11 +429,21 @@ export class SceneManager {
       ['intake-left', ['left']],
       ['intake-right', ['right']],
     ] as const) {
-      this.labels.add({ id, title: 'Intake Screens', anchor: () => intakeAnchor, viewports: [...vp] as LabelViewport[], view: above, pick: 'intake' });
+      this.labels.add({
+        id,
+        title: 'Intake Screens',
+        icon: iconSvg('intake', 22),
+        pages: id === 'intake' ? ['visualiser', 'system'] : undefined,
+        anchor: () => intakeAnchor,
+        viewports: [...vp] as LabelViewport[],
+        view: above,
+        pick: 'intake',
+      });
     }
     this.labels.add({
       id: 'release',
       title: 'Safe Release',
+      icon: iconSvg('release', 22),
       anchor: () => this.release.anchor(),
       viewports: ['single'],
       view: above,
@@ -620,6 +637,7 @@ export class SceneManager {
     const r = this.renderer;
     if (this.ui.compare) {
       const half = Math.floor(this.width / 2);
+      this.labels.setCompact(half < 640);
       this.camera.aspect = half / this.height;
       this.camera.updateProjectionMatrix();
       r.setScissorTest(true);
@@ -636,6 +654,7 @@ export class SceneManager {
       r.setScissorTest(false);
     } else {
       const w = this.ui.displayed;
+      this.labels.setCompact(this.width < 760);
       this.camera.aspect = this.width / this.height;
       this.camera.updateProjectionMatrix();
       this.setWorld(w);

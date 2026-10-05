@@ -18,6 +18,10 @@ export interface LabelDef {
   minDistance?: number;
   /** Selection kind emitted when the label is clicked. */
   pick?: string;
+  /** Inline SVG markup shown in an icon well on the card. */
+  icon?: string;
+  /** Restrict the label to these app pages (all pages when omitted). */
+  pages?: string[];
 }
 
 interface LabelEntry {
@@ -43,6 +47,7 @@ interface LabelEntry {
   below: boolean;
   vpLeft: number;
   vpRight: number;
+  vpBottom: number;
 }
 
 const v = new THREE.Vector3();
@@ -63,6 +68,9 @@ export class LabelSystem {
   enabled = true;
   /** Viewport band at the top kept clear for the camera toolbar (px). */
   topReserved = 60;
+  /** Current app page (labels may be page-specific). */
+  page = '';
+  private compact = false;
   onPick: ((pick: string) => void) | null = null;
 
   constructor() {
@@ -76,13 +84,22 @@ export class LabelSystem {
     el.dataset.tone = def.tone ?? 'default';
     const card = document.createElement('div');
     card.className = 'sl-label-card';
+    if (def.icon) {
+      const icon = document.createElement('div');
+      icon.className = 'sl-label-icon';
+      icon.innerHTML = def.icon;
+      card.appendChild(icon);
+    }
+    const text = document.createElement('div');
+    text.className = 'sl-label-text';
     const title = document.createElement('div');
     title.className = 'sl-label-title';
     title.textContent = def.title;
     const body = document.createElement('div');
     body.className = 'sl-label-body';
     body.textContent = def.body ?? '';
-    card.append(title, body);
+    text.append(title, body);
+    card.appendChild(text);
     const stem = document.createElement('div');
     stem.className = 'sl-label-stem';
     const dot = document.createElement('div');
@@ -120,6 +137,7 @@ export class LabelSystem {
       below: false,
       vpLeft: 0,
       vpRight: 0,
+      vpBottom: 0,
     });
   }
 
@@ -136,6 +154,14 @@ export class LabelSystem {
     e.sizeDirty = true;
   }
 
+  /** Compact cards (title only, smaller) for small viewports. */
+  setCompact(compact: boolean): void {
+    if (compact === this.compact) return;
+    this.compact = compact;
+    this.layer.classList.toggle('sl-label-layer--compact', compact);
+    for (const e of this.entries.values()) e.sizeDirty = true;
+  }
+
   beginFrame(): void {
     this.frame.length = 0;
     for (const e of this.entries.values()) e.placed = false;
@@ -146,6 +172,7 @@ export class LabelSystem {
     for (const e of this.entries.values()) {
       const d = e.def;
       if (!d.viewports.includes(viewport)) continue;
+      if (d.pages && !d.pages.includes(this.page)) continue;
       if (d.view === 'above' && underwater) continue;
       if (d.view === 'below' && !underwater) continue;
       const a = d.anchor();
@@ -163,6 +190,7 @@ export class LabelSystem {
       e.viewport = viewport;
       e.vpLeft = offsetX;
       e.vpRight = offsetX + width;
+      e.vpBottom = height;
       e.opacity = d.maxDistance ? Math.min(1, (d.maxDistance - dist) / (d.maxDistance * 0.2)) : 1;
       e.placed = true;
       this.frame.push(e);
@@ -223,10 +251,19 @@ export class LabelSystem {
           if (!hit) break;
           stem = hit.b + GAP - e.y;
         }
-        e.stem = Math.min(stem, 220);
+        // No room above or below: drop the card rather than overlap or clip it.
+        if (stem > 220 || e.y + stem + e.h > e.vpBottom - 6 || overlaps(e.viewport, l, r, e.y + stem, e.y + stem + e.h)) {
+          e.placed = false;
+          continue;
+        }
+        e.stem = stem;
         rects.push({ l, r, t: e.y + e.stem, b: e.y + e.stem + e.h, vp: e.viewport });
       } else {
-        e.stem = Math.min(stem, 220);
+        if (stem > 220 || overlaps(e.viewport, l, r, e.y - stem - e.h, e.y - stem)) {
+          e.placed = false;
+          continue;
+        }
+        e.stem = stem;
         rects.push({ l, r, t: e.y - e.stem - e.h, b: e.y - e.stem, vp: e.viewport });
       }
     }

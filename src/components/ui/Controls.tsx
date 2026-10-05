@@ -33,7 +33,7 @@ export function Segmented<T extends string | number>({
           disabled={o.disabled}
           title={o.title}
           onClick={() => onChange(o.value)}
-          className={cn('flex-1', size === 'sm' && '!h-[22px] !px-2 !text-[11px]')}
+          className={cn('flex-1', size === 'sm' && '!h-[26px] !px-2 !text-[12px]')}
         >
           {o.label}
         </button>
@@ -54,6 +54,8 @@ export function Slider({
   hint,
   disabled,
   marker,
+  icon,
+  ends,
 }: {
   label: ReactNode;
   value: number;
@@ -67,15 +69,22 @@ export function Slider({
   disabled?: boolean;
   /** Optional reference marker (e.g. envelope limit) as a value. */
   marker?: { value: number; label: string };
+  /** Leading icon shown before the label. */
+  icon?: ReactNode;
+  /** Labels under the two ends of the track. */
+  ends?: [ReactNode, ReactNode];
 }) {
   const pct = ((value - min) / (max - min)) * 100;
   return (
     <div className={cn('group', disabled && 'opacity-50')}>
-      <div className="flex items-center justify-between gap-2 text-[12px]">
-        <span className="text-ink-2">{label}</span>
-        <span className={cn('num text-[12px]', tone === 'red' ? 'text-red' : tone === 'amber' ? 'text-amber' : 'text-ink')}>{display}</span>
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex min-w-0 items-center gap-2 text-[13.5px] text-ink-2">
+          {icon && <span className="flex shrink-0 text-muted">{icon}</span>}
+          <span className="truncate">{label}</span>
+        </span>
+        <span className={cn('num shrink-0 text-[13.5px]', tone === 'red' ? 'text-red' : tone === 'amber' ? 'text-amber' : 'text-ink')}>{display}</span>
       </div>
-      <div className="relative mt-0.5">
+      <div className="relative mt-1">
         <input
           type="range"
           className="range"
@@ -91,13 +100,19 @@ export function Slider({
         />
         {marker && (
           <div
-            className="pointer-events-none absolute top-[3px] h-[12px] w-px bg-red/70"
-            style={{ left: `calc(${((marker.value - min) / (max - min)) * 100}% )` }}
+            className="pointer-events-none absolute top-[3px] h-[12px] w-[2px] -translate-x-1/2 rounded-full bg-red/75"
+            style={{ left: `calc(8px + (100% - 16px) * ${(marker.value - min) / (max - min)})` }}
             title={marker.label}
           />
         )}
       </div>
-      {hint && <div className="mt-0.5 text-[10.5px] text-dim">{hint}</div>}
+      {ends && (
+        <div className="num mt-0.5 flex justify-between text-[11px] text-dim">
+          <span>{ends[0]}</span>
+          <span>{ends[1]}</span>
+        </div>
+      )}
+      {hint && <div className="mt-1 text-[11.5px] leading-snug text-dim">{hint}</div>}
     </div>
   );
 }
@@ -106,8 +121,8 @@ export function Toggle({ checked, onChange, label, hint }: { checked: boolean; o
   return (
     <label className="flex cursor-pointer items-start justify-between gap-3 py-1">
       <span>
-        <span className="block text-[12px] text-ink-2">{label}</span>
-        {hint && <span className="block text-[10.5px] text-dim">{hint}</span>}
+        <span className="block text-[13.5px] text-ink-2">{label}</span>
+        {hint && <span className="block text-[11.5px] text-dim">{hint}</span>}
       </span>
       <button
         type="button"
@@ -115,14 +130,14 @@ export function Toggle({ checked, onChange, label, hint }: { checked: boolean; o
         aria-checked={checked}
         onClick={() => onChange(!checked)}
         className={cn(
-          'relative mt-0.5 h-[18px] w-[32px] shrink-0 rounded-full border transition-colors duration-200',
+          'relative mt-0.5 h-[20px] w-[36px] shrink-0 rounded-full border transition-colors duration-200',
           checked ? 'border-cyan/60 bg-cyan/25' : 'border-line-strong bg-base/60',
         )}
       >
         <span
           className={cn(
-            'absolute top-[2px] h-[12px] w-[12px] rounded-full transition-all duration-200',
-            checked ? 'left-[16px] bg-cyan shadow-[0_0_8px_rgba(34,211,238,0.6)]' : 'left-[2px] bg-muted',
+            'absolute top-[2px] h-[14px] w-[14px] rounded-full transition-all duration-200',
+            checked ? 'left-[18px] bg-cyan shadow-[0_0_8px_rgba(34,211,238,0.6)]' : 'left-[2px] bg-muted',
           )}
         />
       </button>
