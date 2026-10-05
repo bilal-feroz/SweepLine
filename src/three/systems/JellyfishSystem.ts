@@ -4,7 +4,10 @@ import type { SimulationEngine } from '../../simulation/SimulationEngine';
 import { MEDIUM_GLSL, SHARED } from '../environment/shaderChunks';
 
 /** Distance-based legibility scaling: true scale up close, enlarged at aerial distances. */
-export const LEGIBILITY = { start: 10, perMetre: 1 / 25, max: 7 };
+export const LEGIBILITY = { start: 12, perMetre: 1 / 15, max: 11 };
+
+/** Height of the bell crown above the instance origin, in bell diameters (see jellyfishGeometry). */
+const BELL_TOP = 0.37;
 
 export function jellyShader(map: THREE.Texture | null): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
@@ -95,7 +98,7 @@ export function jellyShader(map: THREE.Texture | null): THREE.ShaderMaterial {
         float wrap = max(dot(N, L) * 0.5 + 0.5, 0.0);
         float back = pow(max(dot(V, -L), 0.0), 3.0);
         float tint = vData.y;
-        vec3 hue = tint < 0.34 ? vec3(0.55, 0.72, 0.98) : tint < 0.68 ? vec3(0.68, 0.64, 0.95) : vec3(0.5, 0.88, 0.95);
+        vec3 hue = tint < 0.34 ? vec3(0.55, 0.72, 0.98) : tint < 0.68 ? vec3(0.78, 0.87, 0.98) : vec3(0.5, 0.88, 0.95);
         vec3 base = mix(vec3(0.74, 0.82, 0.92), hue, 0.6);
         if (uHasMap > 0.5) base = mix(base, texture2D(uMap, vUv).rgb, 0.65);
         vec3 col;
@@ -123,12 +126,16 @@ export function jellyShader(map: THREE.Texture | null): THREE.ShaderMaterial {
           col = mix(col, vec3(0.3, 0.95, 1.0), 0.45) + rim * 0.5;
           alpha = max(alpha, 0.8);
         }
+        // Underwater: sunlight from above rim-lights the bell; applied before the water fog so distance still hides it.
+        float under = 1.0 - step(0.0, cameraPosition.y);
+        col += under * (vPart < 0.6 ? 0.24 : 0.12) * rim * vec3(0.7, 0.9, 1.0);
+        alpha = mix(alpha, min(1.0, alpha * 1.25 + 0.06), under);
         col = slMedium(col, vWorld);
         // Legibility at aerial distances: agents are already enlarged; give them a soft
         // self-lit edge so the bloom reads through the surface. Up close the look is physical.
-        float far = smoothstep(35.0, 160.0, length(cameraPosition - vWorld)) * step(0.0, cameraPosition.y);
-        col += far * (vPart < 0.6 ? 0.42 : 0.22) * (0.35 + 0.65 * rim) * mix(vec3(0.55, 0.78, 1.0), hue, 0.35);
-        alpha = mix(alpha, min(1.0, alpha * 1.35 + 0.08), far);
+        float far = smoothstep(30.0, 140.0, length(cameraPosition - vWorld)) * step(0.0, cameraPosition.y);
+        col += far * (vPart < 0.6 ? 0.58 : 0.3) * (0.55 + 0.45 * rim) * mix(vec3(0.62, 0.84, 1.0), hue, 0.3);
+        alpha = mix(alpha, min(1.0, alpha * 1.55 + 0.22), far);
         gl_FragColor = vec4(col, alpha * vData.z);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
@@ -230,6 +237,9 @@ export class JellyfishSystem {
       let boost = 1;
       if (legibility && dist > LEGIBILITY.start) boost = Math.min(LEGIBILITY.max, 1 + (dist - LEGIBILITY.start) * LEGIBILITY.perMetre);
       const s = size[i] * boost;
+      // Enlarged bells are flattened a little and kept below the surface, so they never sit on top of the water.
+      const flat = boost > 1 ? 1 - 0.22 * Math.min(1, (boost - 1) / 6) : 1;
+      const yv = boost > 1 ? Math.min(y, -BELL_TOP * s * flat - 0.35) : y;
       // Bell axis tilts gently into the direction of travel.
       const hvx = vx[i];
       const hvz = vz[i];
@@ -241,8 +251,8 @@ export class JellyfishSystem {
       } else this.q.identity();
       this.qYaw.setFromAxisAngle(this.up, phase[i] * 6.283);
       this.q.multiply(this.qYaw);
-      this.pos.set(x, y, z);
-      this.scl.set(s, s, s);
+      this.pos.set(x, yv, z);
+      this.scl.set(s, s * flat, s);
       this.m.compose(this.pos, this.q, this.scl);
       const selected = id[i] === this.selectedId;
       let alpha = fade[i];
