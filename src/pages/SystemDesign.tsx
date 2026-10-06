@@ -18,6 +18,7 @@ import { getCurtainLayout } from '../simulation/geometry';
 import { cn, mmss } from '../utils/format';
 
 const C = ASSUMPTIONS.curtain;
+const J = ASSUMPTIONS.jets;
 
 const PROCESS: Array<{ n: string; icon: ReactNode; title: string; body: string; status: (s: SimSnapshot) => string }> = [
   {
@@ -30,9 +31,10 @@ const PROCESS: Array<{ n: string; icon: ReactNode; title: string; body: string; 
   {
     n: '02',
     icon: <Icon name="curtain" size={30} strokeWidth={1.5} />,
-    title: 'Guide Curtain',
-    body: `Smooth floating curtain on a pre-engineered 15° / 20° / 25° anchor layout with an adjustable ${C.skirtDepthMin}–${C.skirtDepthMax} m skirt.`,
-    status: (s) => `${s.curtain.mode.charAt(0)}${s.curtain.mode.slice(1).toLowerCase()} · ${s.params.anchorAngle}°`,
+    title: 'Active Guide Curtain',
+    body: `Pops up from the seabed on the warning. Built-in water jets make its own current along the face and lift jellyfish at the edge of its ${C.skirtDepthMin}–${C.skirtDepthMax} m skirt.`,
+    status: (s) =>
+      `${s.curtain.mode.charAt(0)}${s.curtain.mode.slice(1).toLowerCase()} · ${s.params.anchorAngle}° · ${s.params.activeFlow && s.curtain.jetOutput > 0.01 ? `jets ${Math.round(s.curtain.jetOutput * 100)}%` : 'passive'}`,
   },
   {
     n: '03',
@@ -64,7 +66,7 @@ const LAYERS: Array<{ badge: string; tone: TileTone; pill: 'cyan' | 'amber' | 'g
     pill: 'cyan',
     icon: <Icon name="curtain" size={20} />,
     title: 'SweepLine guidance',
-    body: 'The angled guide curtain sweeps the bloom laterally to the recovery throat; low-shear transfer releases it alive down-current.',
+    body: 'The pop-up guide curtain and its water jets sweep the bloom to the recovery throat; low-shear transfer releases it alive down-current.',
   },
   {
     badge: 'SECONDARY',
@@ -121,7 +123,13 @@ function SiteViews({ snap }: { snap: SimSnapshot }) {
       bodyClassName="flex flex-col gap-3"
     >
       <div className="overflow-hidden rounded-xl border border-line" style={{ aspectRatio: PLAN_ASPECT }}>
-        {view === 'plan' && <PlanSchematic selected={p.anchorAngle} reefFraction={snap.curtain.reefedPct > 0 && snap.curtain.reefedPct < 1 ? snap.curtain.reefedPct : 0} />}
+        {view === 'plan' && (
+          <PlanSchematic
+            selected={p.anchorAngle}
+            reefFraction={snap.curtain.reefedPct > 0 && snap.curtain.reefedPct < 1 ? snap.curtain.reefedPct : 0}
+            jets={p.activeFlow}
+          />
+        )}
         {view === 'side' && (
           <SideSchematic
             skirt={snap.curtain.skirtActual}
@@ -134,6 +142,7 @@ function SiteViews({ snap }: { snap: SimSnapshot }) {
             current={p.currentSpeed}
             underPct={snap.sweepline.underSkirtPct}
             minClearance={OPERATING_ENVELOPE.seabedClearance.min}
+            jet={p.activeFlow ? Math.max(snap.curtain.jetOutput, snap.curtain.mode === 'STOWED' ? p.jetLevel : 0) : 0}
           />
         )}
         {view === '3d' && (
@@ -274,10 +283,14 @@ export function SystemDesign() {
                 ['Skirt depth range', `${C.skirtDepthMin}–${C.skirtDepthMax} m`],
                 ['Seabed clearance', `≥ ${C.seabedClearance} m`],
                 ['Skirt winch rate', `${C.skirtWinchRate} m/s`],
-                ['Deployment tow speed', `${C.deploySpeed} m/s`],
+                ['Deployment', 'Pop-up: inflatable float line'],
+                ['Workboat option', `${C.deploySpeed} m/s tow`],
+                ['Conveyor jets', `${J.conveyorSpeed} m/s at the face`],
+                ['Foot jets', `${J.footUplift} m/s up at the hem`],
+                ['Jet flow / power', `~${J.designFlowM3s} m³/s · ~${J.designPowerKW} kW`],
                 ['Intermediate anchors', `every ${C.intermediateAnchorSpacing} m`],
                 ['Throat mouth', `${(SITE.throat.halfWidth * 2).toFixed(1)} × ${(SITE.throat.halfHeight * 2).toFixed(1)} m`],
-                ['Bubble depth guard', 'Not in V1 (research only)'],
+                ['Air bubbles', 'None — water jets only'],
               ] as const
             ).map(([k, v]) => (
               <div key={k} className="flex items-center justify-between gap-4 border-b border-line/60 py-2 text-[13px] last:border-0">

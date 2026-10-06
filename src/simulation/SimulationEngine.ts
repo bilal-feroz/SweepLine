@@ -199,6 +199,7 @@ export class SimulationEngine {
     this.flow.setCurrent(params.currentSpeed, params.currentBearing);
     if (this.curtain) {
       this.curtain.skirtTarget = params.skirtDepth;
+      this.curtain.jetTarget = params.activeFlow ? Math.min(1, Math.max(0, params.jetLevel)) : 0;
       if (this.curtain.layout.angle !== params.anchorAngle && this.curtain.mode === 'STOWED') {
         const layout = getCurtainLayout(params.anchorAngle);
         this.curtain.setLayout(layout);
@@ -376,6 +377,11 @@ export class SimulationEngine {
     const overtopRate =
       P.waveHeight > CA.overtopThreshold ? CA.overtopGain * (P.waveHeight - CA.overtopThreshold) ** 2 : 0;
     const reefingCurtain = !!curtain && (curtain.mode === 'REEFING' || curtain.mode === 'REEFED');
+    // Active flow: conveyor wall jet along the bloom face and upward foot jets at the skirt edge.
+    const J = ASSUMPTIONS.jets;
+    const jet = curtain ? curtain.jetOutput : 0;
+    const conveyor = jet * J.conveyorSpeed;
+    const uplift = jet * J.footUplift;
     let guided = 0;
     let underNow = 0;
     this.backedUpCount = 0;
@@ -456,77 +462,92 @@ export class SimulationEngine {
             }
           }
           side[i] = d > 0 ? 1 : -1;
-        } else if (d > 0) {
-          if (depth < skirt) {
-            if (d < CA.interactionRange) {
-              const vin = -(dvx * nX + dvz * nZ);
-              const g0 = 1 - d / CA.interactionRange;
-              const g = g0 * g0 * (3 - 2 * g0);
-              if (vin > 0) {
-                // Normal component is blocked and redirected along the curtain; some becomes downward entrainment.
-                dvx += nX * vin * g + layout.tx[k] * vin * g * CA.redirectGain;
-                dvz += nZ * vin * g + layout.tz[k] * vin * g * CA.redirectGain;
-                dvy -= vin * g * CA.entrainmentGain;
-              }
-              if (d < CA.guideDistance && !(fl & F_OVERTOPPING)) {
-                if (st !== S_GUIDED) {
-                  ns = S_GUIDED;
-                  if (!(fl & F_ENCOUNTERED)) {
-                    fl |= F_ENCOUNTERED;
-                    contactStart[i] = t;
-                    counters.encountered++;
-                  }
-                }
-                guideSeg = k;
-                // Wave overtopping of the float line by near-surface agents in high sea states.
-                if (overtopRate > 0 && depth < 0.6 && vin > 0) {
-                  const p = overtopRate * (vin / 0.1) * dt;
-                  if (hash01(aid, Math.floor(t * 10)) < p) {
-                    fl |= F_OVERTOPPING | F_OVERTOPPED;
-                    timer[i] = 8;
-                    ns = S_FREE_DRIFT;
-                    guideSeg = -1;
-                    counters.overtopped++;
-                    this.pushMarker(x, -depth, z, 'overtop');
-                  }
-                }
-              }
-            }
-          } else {
-            // Deeper than the skirt's lower edge: the agent passes beneath.
-            if (d < CA.guideDistance && !(fl & F_ENCOUNTERED)) {
-              fl |= F_ENCOUNTERED;
-              contactStart[i] = t;
-              counters.encountered++;
-            }
-            if (st === S_GUIDED) ns = S_UNDER_SKIRT;
-          }
-          side[i] = 1;
         } else {
-          let blocked = false;
-          if (side[i] === 1 && !(fl & F_OVERTOPPING)) {
-            // Crossed the curtain plane during the last step.
-            if (depth >= skirt - 0.02) {
-              if (curtain.segReefing[k]) {
-                if (!(fl & F_REEF_RELEASED)) {
-                  fl |= F_REEF_RELEASED;
-                  counters.reefReleased++;
-                }
-              } else if (!(fl & F_UNDER_COUNTED)) {
-                fl |= F_UNDER_COUNTED;
-                counters.underSkirt++;
-                this.pushMarker(x, -depth, z, 'under');
-              }
-              ns = S_UNDER_SKIRT;
-            } else {
-              // Above the skirt edge the curtain is impermeable: restore to the bloom face.
-              x += nX * (CA.minStandoff - d);
-              z += nZ * (CA.minStandoff - d);
-              blocked = true;
+          if (jet > 0) {
+            if (d > 0 && d < J.conveyorBand && depth < skirt + 0.5) {
+              const w0 = 1 - d / J.conveyorBand;
+              dvx += layout.tx[k] * conveyor * w0 * w0;
+              dvz += layout.tz[k] * conveyor * w0 * w0;
+            }
+            if (d > -0.5 && d < J.footBand) {
+              // Strongest at the hem, fading above it and down to the jets' reach below it.
+              const below = depth - skirt;
+              const wz = below < 0 ? 1 + below / 0.6 : 1 - below / J.footReach;
+              if (wz > 0) dvy += uplift * wz * (1 - Math.abs(d) / J.footBand);
             }
           }
-          if (!blocked) side[i] = -1;
-          if (ns === S_UNDER_SKIRT && d < -2.5) ns = S_FREE_DRIFT;
+          if (d > 0) {
+            if (depth < skirt) {
+              if (d < CA.interactionRange) {
+                const vin = -(dvx * nX + dvz * nZ);
+                const g0 = 1 - d / CA.interactionRange;
+                const g = g0 * g0 * (3 - 2 * g0);
+                if (vin > 0) {
+                  // Normal component is blocked and redirected along the curtain; some becomes downward entrainment.
+                  dvx += nX * vin * g + layout.tx[k] * vin * g * CA.redirectGain;
+                  dvz += nZ * vin * g + layout.tz[k] * vin * g * CA.redirectGain;
+                  dvy -= vin * g * CA.entrainmentGain;
+                }
+                if (d < CA.guideDistance && !(fl & F_OVERTOPPING)) {
+                  if (st !== S_GUIDED) {
+                    ns = S_GUIDED;
+                    if (!(fl & F_ENCOUNTERED)) {
+                      fl |= F_ENCOUNTERED;
+                      contactStart[i] = t;
+                      counters.encountered++;
+                    }
+                  }
+                  guideSeg = k;
+                  // Wave overtopping of the float line by near-surface agents in high sea states.
+                  if (overtopRate > 0 && depth < 0.6 && vin > 0) {
+                    const p = overtopRate * (vin / 0.1) * dt;
+                    if (hash01(aid, Math.floor(t * 10)) < p) {
+                      fl |= F_OVERTOPPING | F_OVERTOPPED;
+                      timer[i] = 8;
+                      ns = S_FREE_DRIFT;
+                      guideSeg = -1;
+                      counters.overtopped++;
+                      this.pushMarker(x, -depth, z, 'overtop');
+                    }
+                  }
+                }
+              }
+            } else {
+              // Deeper than the skirt's lower edge: the agent passes beneath.
+              if (d < CA.guideDistance && !(fl & F_ENCOUNTERED)) {
+                fl |= F_ENCOUNTERED;
+                contactStart[i] = t;
+                counters.encountered++;
+              }
+              if (st === S_GUIDED) ns = S_UNDER_SKIRT;
+            }
+            side[i] = 1;
+          } else {
+            let blocked = false;
+            if (side[i] === 1 && !(fl & F_OVERTOPPING)) {
+              // Crossed the curtain plane during the last step.
+              if (depth >= skirt - 0.02) {
+                if (curtain.segReefing[k]) {
+                  if (!(fl & F_REEF_RELEASED)) {
+                    fl |= F_REEF_RELEASED;
+                    counters.reefReleased++;
+                  }
+                } else if (!(fl & F_UNDER_COUNTED)) {
+                  fl |= F_UNDER_COUNTED;
+                  counters.underSkirt++;
+                  this.pushMarker(x, -depth, z, 'under');
+                }
+                ns = S_UNDER_SKIRT;
+              } else {
+                // Above the skirt edge the curtain is impermeable: restore to the bloom face.
+                x += nX * (CA.minStandoff - d);
+                z += nZ * (CA.minStandoff - d);
+                blocked = true;
+              }
+            }
+            if (!blocked) side[i] = -1;
+            if (ns === S_UNDER_SKIRT && d < -2.5) ns = S_FREE_DRIFT;
+          }
         }
       } else if (st === S_GUIDED || st === S_UNDER_SKIRT) {
         ns = S_FREE_DRIFT;

@@ -349,8 +349,10 @@ function AnchorLayoutCard() {
     ['Normal velocity (into curtain)', `${c.normalVelocity.toFixed(3)} m/s`],
     ['Tangential velocity (sweep)', `${ut.toFixed(3)} m/s`],
     ['Curtain length', `${c.length.toFixed(0)} m`],
-    ['Est. traverse time', `${(c.length / Math.max(ut, 0.01) / 60).toFixed(1)} min`],
+    ['Est. traverse time (current only)', `${(c.length / Math.max(ut, 0.01) / 60).toFixed(1)} min`],
     ['Seabed-limited max skirt', `${c.clearanceMax.toFixed(1)} m`],
+    ['Conveyor jets at the face', c.jetOutput > 0.01 ? `+${c.jetConveyor.toFixed(2)} m/s` : 'off'],
+    ['Jet water flow', c.jetOutput > 0.01 ? `${c.jetFlowM3s.toFixed(1)} m³/s` : 'off'],
   ];
   return (
     <Panel
@@ -379,7 +381,8 @@ function AnchorLayoutCard() {
         ))}
       </div>
       <p className="text-[12px] leading-relaxed text-muted">
-        A shallow angle keeps the blocking component small and the sweeping component large: incoming flow becomes lateral flow along the curtain.
+        A shallow angle keeps the blocking component small and the sweeping component large: incoming flow becomes lateral flow along the curtain, and the
+        conveyor jets add their own along-face current so the sweep continues when the natural current is weak.
         Redirect gain {ASSUMPTIONS.curtain.redirectGain}, entrainment gain {ASSUMPTIONS.curtain.entrainmentGain} (design assumptions).
       </p>
     </Panel>

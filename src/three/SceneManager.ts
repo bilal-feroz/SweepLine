@@ -21,6 +21,7 @@ import { Water } from './environment/Water';
 import { Annotations } from './systems/Annotations';
 import { CurrentField } from './systems/CurrentField';
 import { CurtainSystem } from './systems/CurtainSystem';
+import { JetSystem } from './systems/JetSystem';
 import { jellyShader, JellyfishSystem } from './systems/JellyfishSystem';
 import { LabelSystem, type LabelViewport } from './systems/LabelSystem';
 import { iconSvg } from '../components/ui/icons';
@@ -55,6 +56,7 @@ export class SceneManager {
   private readonly water: Water;
   private readonly underwaterFx = new UnderwaterFx();
   private readonly curtain: CurtainSystem;
+  private readonly jets = new JetSystem();
   private readonly transfer: TransferSystem;
   private readonly release: ReleaseSystem;
   private readonly annotations = new Annotations();
@@ -161,7 +163,7 @@ export class SceneManager {
     this.transfer = new TransferSystem();
     this.release = new ReleaseSystem();
     this.workboat = buildWorkboat();
-    this.sweepGroup.add(this.curtain.group, this.transfer.group, this.release.group, this.workboat);
+    this.sweepGroup.add(this.curtain.group, this.jets.group, this.transfer.group, this.release.group, this.workboat);
     this.scene.add(this.sweepGroup);
     this.scene.add(this.annotations.group);
 
@@ -353,12 +355,20 @@ export class SceneManager {
     const densityLabel = density >= 0.85 ? 'Very high density' : density >= 0.65 ? 'High density' : density >= 0.4 ? 'Moderate density' : 'Low density';
     this.labels.setContent('bloom', 'Jellyfish Bloom', `${densityLabel} · P90 ${s.bloom.p90.toFixed(1)} m`, density >= 0.65 ? 'red' : 'amber');
     const mode = s.curtain.mode;
+    const cs = s.curtain;
+    const jets = s.params.activeFlow && cs.jetOutput > 0.01 ? `jets ${Math.round(cs.jetOutput * 100)}%` : 'passive';
     const curtainBody =
       mode === 'STOWED'
-        ? `${s.curtain.angle}° layout · stowed`
+        ? `${cs.angle}° layout · ${s.params.deployMode === 'popup' ? 'stowed on seabed' : 'stowed'}`
         : mode === 'REEFING' || mode === 'REEFED'
-          ? `Reefing · ${s.curtain.reefedPct.toFixed(0)}% reefed`
-          : `${s.curtain.angle}° anchor layout · ${s.curtain.skirtActual.toFixed(1)} m skirt`;
+          ? `Reefing · ${cs.reefedPct.toFixed(0)}% reefed`
+          : mode === 'DEPLOYING'
+            ? cs.deployDelay > 0
+              ? cs.deployMode === 'workboat'
+                ? 'Workboat mobilising'
+                : 'Pop-up · inflating'
+              : `${cs.deployMode === 'popup' ? 'Rising' : 'Laying'} · ${cs.deployedPct.toFixed(0)}%`
+            : `${cs.angle}° · ${cs.skirtActual.toFixed(1)} m skirt · ${jets}`;
     this.labels.setContent('curtain', 'Guide Curtain', curtainBody, mode === 'REEFING' || mode === 'REEFED' ? 'amber' : 'default');
     const occ = sw.throatOccupancy;
     this.labels.setContent(
@@ -584,6 +594,7 @@ export class SceneManager {
 
     // SweepLine installation.
     this.curtain.update(c, this.realTime, params.waveHeight, this.ui.flowView);
+    this.jets.update(c, this.realTime, simDt, params.waveHeight);
     this.transfer.update({
       occupancy: tr.queue.length / sw.holdCapacity,
       primary: tr.primaryStatus,
@@ -789,8 +800,9 @@ export class SceneManager {
     let tz = th.mz + 9;
     let yaw = 0;
     let s = -1;
-    if (c.mode === 'DEPLOYING' || c.mode === 'STOWING') s = Math.min(L.length, Math.max(0, L.length - c.deployFront));
-    else if (c.mode === 'REEFING' || c.mode === 'UNREEFING') s = Math.min(L.length, Math.max(0, c.reefFront));
+    const byBoat = c.deployMode === 'workboat';
+    if (byBoat && ((c.mode === 'DEPLOYING' && c.deployDelay <= 0) || c.mode === 'STOWING')) s = Math.min(L.length, Math.max(0, L.length - c.deployFront));
+    else if (byBoat && (c.mode === 'REEFING' || c.mode === 'UNREEFING')) s = Math.min(L.length, Math.max(0, c.reefFront));
     if (s >= 0) {
       const p = pointAtArc(L, s);
       tx = p.x + p.nx * 4;

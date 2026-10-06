@@ -78,6 +78,40 @@ export const ASSUMPTIONS = {
     overtopGain: 0.02,
   },
 
+  /**
+   * Active flow (SweepLine Active): low-velocity water jets built into the curtain.
+   * Conveyor jets drive a gentle wall jet along the bloom face toward the throat, so the
+   * sweep does not depend on the natural current; foot jets on the weighted hem push water
+   * upward at the gap under the skirt (a "water skirt"). First-pass values from plane
+   * wall-jet scaling, to be sized by CFD and flume tests.
+   */
+  jets: {
+    /** Along-face velocity at the curtain face at 100 % output (m/s). */
+    conveyorSpeed: 0.3,
+    /** Width of the conveyor layer on the bloom side; the velocity falls to zero across it (m). */
+    conveyorBand: 3.0,
+    /** Upward velocity at the skirt's lower edge at 100 % output (m/s). */
+    footUplift: 0.07,
+    /** How far below the skirt edge the foot jets reach (m). */
+    footReach: 1.5,
+    /** Horizontal reach of the foot jets from the curtain plane (m). */
+    footBand: 2.0,
+    /** Time for the jets to reach the commanded output (s). */
+    rampTime: 10,
+    /** Water flow and pump power at 100 % output (first estimate; power scales with output cubed). */
+    designFlowM3s: 1.5,
+    designPowerKW: 50,
+  },
+
+  deploy: {
+    /** Pop-up: valve checks before the float line starts inflating (s). */
+    popUpDelay: 15,
+    /** Pop-up: speed of the inflation front along the curtain from the throat end (m/s). */
+    popUpSpeed: 2.5,
+    /** Workboat option: crew and vessel mobilisation before laying starts (s). */
+    workboatMobilisation: 900,
+  },
+
   throat: {
     /** Bellmouth holding capacity per 1000 simulated agents. */
     holdCapacityPerThousand: 20,
@@ -87,8 +121,11 @@ export const ASSUMPTIONS = {
   },
 
   transfer: {
-    /** Transfer rate at 100 % capacity, per 1000 simulated agents (agents/s). */
-    designRatePerThousand: 0.36,
+    /**
+     * Transfer rate at 100 % capacity, per 1000 simulated agents (agents/s). Sized for the
+     * active curtain, which delivers more of the bloom to the throat than a passive one.
+     */
+    designRatePerThousand: 0.48,
     /** Nominal transfer water flow at 100 % capacity (m³/h). */
     designFlowM3h: 640,
     /** Time for the standby path to reach full capacity after a primary fault (s). */

@@ -415,7 +415,8 @@ export class CurtainSystem {
     this.skirt.visible = !stowed;
     this.ballast.visible = !stowed;
 
-    // Floats ride the shared sea state.
+    // Floats ride the shared sea state; a pop-up curtain's floats rise from below near the front.
+    const popFront = c.deployMode === 'popup' && (c.mode === 'DEPLOYING' || c.mode === 'STOWING');
     let ci = 0;
     for (let i = 0; i < this.floatSlots.length; i++) {
       const f = this.floatSlots[i];
@@ -432,7 +433,8 @@ export class CurtainSystem {
       this.tmpQ.setFromAxisAngle(this.yAxis, -Math.atan2(f.tz, f.tx));
       this.pitchQ.setFromAxisAngle(this.zAxis, pitch);
       this.tmpQ.multiply(this.pitchQ);
-      this.tmpP.set(f.x, eta + 0.1 - reefAmt * 0.08, f.z);
+      const rise = popFront ? Math.max(0, 1 - (f.s - laidFrom) / 8) * 1.6 : 0;
+      this.tmpP.set(f.x, eta + 0.1 - reefAmt * 0.08 - rise, f.z);
       this.tmpS.set(1, 1 - reefAmt * 0.15, 1);
       this.tmpM.compose(this.tmpP, this.tmpQ, this.tmpS);
       this.floats.setMatrixAt(i, this.tmpM);

@@ -22,7 +22,10 @@ interface Line {
 const CAPEX: Line[] = [
   { id: 'anchors', label: 'Permanent anchors', note: 'Pre-engineered seabed anchors for all three layouts', value: '' },
   { id: 'curtain', label: 'Curtain modules', note: 'Float line, smooth skirt and ballast — 10 m modules', value: '' },
-  { id: 'reel', label: 'Deployment reel / handling', note: 'Throat-side reel, winches and handling gear', value: '' },
+  { id: 'jets', label: 'Jet manifold & nozzles', note: 'Water channels in the float line and hem with low-velocity nozzles', value: '' },
+  { id: 'jetPump', label: 'Jet pump skid', note: 'Low-head pumps with a fish-safe screened intake (~50 kW, first estimate)', value: '' },
+  { id: 'popup', label: 'Pop-up system', note: 'Seabed stowage, inflatable float line, compressor and valves', value: '' },
+  { id: 'reel', label: 'Deployment reel / handling', note: 'Throat-side reel and winches — workboat option only', value: '' },
   { id: 'sensors', label: 'Sensors', note: 'Sonar / depth monitoring, load cells, flow and occupancy sensing', value: '' },
   { id: 'transferA', label: 'Transfer module A', note: 'Large-aperture low-shear module (technology TBD)', value: '' },
   { id: 'transferB', label: 'Standby transfer module', note: 'Redundant path — first fail-safe', value: '', optional: true },
@@ -32,9 +35,9 @@ const CAPEX: Line[] = [
 ];
 
 const OPEX: Line[] = [
-  { id: 'vessel', label: 'Deployment vessel', note: 'Workboat charter for deploy / stow', value: '', basis: 'deployment' },
+  { id: 'vessel', label: 'Deployment vessel', note: 'Workboat charter — workboat option only', value: '', basis: 'deployment' },
   { id: 'crew', label: 'Crew', note: 'Marine crew and operator time', value: '', basis: 'day' },
-  { id: 'power', label: 'Power', note: 'Transfer module and winch power', value: '', basis: 'day' },
+  { id: 'power', label: 'Power', note: 'Transfer module, jet pumps and winches', value: '', basis: 'day' },
   { id: 'cleaning', label: 'Cleaning', note: 'Curtain and throat cleaning / bio-fouling', value: '', basis: 'deployment' },
   { id: 'inspection', label: 'Inspection', note: 'Pre-season and post-deployment inspection', value: '', basis: 'season' },
   { id: 'storage', label: 'Storage', note: 'Off-season curtain storage', value: '', basis: 'season' },

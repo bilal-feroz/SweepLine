@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { ASSUMPTIONS } from '../../config/assumptions';
 import { SITE } from '../../config/site';
 import { nearestSegment, SegmentHit } from '../../simulation/geometry';
 import type { SimulationEngine } from '../../simulation/SimulationEngine';
@@ -137,6 +138,8 @@ export class CurrentField {
     const n = this.flowMode ? MAX : 900;
     const flow = engine.flow;
     const curtain = engine.curtain && engine.curtain.activeCount > 0 ? engine.curtain : null;
+    const conveyor = curtain ? curtain.jetOutput * ASSUMPTIONS.jets.conveyorSpeed : 0;
+    const band = ASSUMPTIONS.jets.conveyorBand;
     const layout = engine.curtain?.layout ?? null;
     const tmp = this.tmp;
     const hit = this.hit;
@@ -164,6 +167,12 @@ export class CurrentField {
             if (vin > 0) {
               tmp.x += nx * vin * g + layout.tx[k] * vin * g * 0.9;
               tmp.z += nz * vin * g + layout.tz[k] * vin * g * 0.9;
+            }
+            // Conveyor jets: a wall jet along the face toward the throat.
+            if (conveyor > 0 && d < band) {
+              const w = (1 - d / band) * (1 - d / band) * conveyor;
+              tmp.x += layout.tx[k] * w;
+              tmp.z += layout.tz[k] * w;
             }
           } else if (d <= 0 && d > -12) {
             const shelter = 0.55 * (1 + d / 12);
@@ -252,6 +261,8 @@ export class CurrentField {
   private updateArrows(engine: SimulationEngine): void {
     const flow = engine.flow;
     const curtain = engine.curtain && engine.curtain.activeCount > 0 ? engine.curtain : null;
+    const conveyor = curtain ? curtain.jetOutput * ASSUMPTIONS.jets.conveyorSpeed : 0;
+    const band = ASSUMPTIONS.jets.conveyorBand;
     const layout = engine.curtain?.layout ?? null;
     for (let i = 0; i < this.arrowPos.length; i++) {
       const [x, z] = this.arrowPos[i];
@@ -268,6 +279,11 @@ export class CurrentField {
             if (vin > 0) {
               this.tmp.x += nx * vin * g + layout.tx[k] * vin * g * 0.8;
               this.tmp.z += nz * vin * g + layout.tz[k] * vin * g * 0.8;
+            }
+            if (conveyor > 0 && d < band) {
+              const w = (1 - d / band) * (1 - d / band) * conveyor;
+              this.tmp.x += layout.tx[k] * w;
+              this.tmp.z += layout.tz[k] * w;
             }
           } else if (d <= 0 && d > -12) {
             const shelter = 0.55 * (1 + d / 12);

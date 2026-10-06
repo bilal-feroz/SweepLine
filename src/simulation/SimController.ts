@@ -7,6 +7,7 @@ import { getScenario, type Scenario, type ScenarioStep } from './scenarios';
 import { SimulationEngine, type AgentInfo } from './SimulationEngine';
 import {
   DEFAULT_PARAMS,
+  type DeployMode,
   type AnchorAngle,
   type CurtainMode,
   type EngineKind,
@@ -81,6 +82,14 @@ export interface SimSnapshot {
     normalVelocity: number;
     activeFraction: number;
     clearanceMax: number;
+    /** Delivered jet output 0..1 and what it means physically (first estimates). */
+    jetOutput: number;
+    jetConveyor: number;
+    jetFlowM3s: number;
+    jetPowerKW: number;
+    /** Method of the current (or last) deployment and the time left before its front moves. */
+    deployMode: DeployMode;
+    deployDelay: number;
   };
   transfer: {
     primary: ModuleStatus;
@@ -190,6 +199,9 @@ export class SimController {
   private script: ScenarioStep[] = [];
   private runStart = 0;
   private skirtLogTimer: ReturnType<typeof setTimeout> | null = null;
+  private jetLogTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Counts deployments so per-deployment events are logged once each. */
+  private deployCount = 0;
   private runToken = 0;
   /** Set when the operator stows the curtain: suppresses auto-deployment until they deploy again. */
   private standDown = false;
@@ -249,7 +261,8 @@ export class SimController {
     this.log('info', `Bloom approach — Blue Blubber (Catostylus mosaicus), density ${(this.params.bloomDensity * 100).toFixed(0)}%`);
 
     if (start === 'steady') {
-      const target = ASSUMPTIONS.sequence.steadyPreRoll;
+      // A workboat deployment first has to mobilise before steady operation can begin.
+      const target = ASSUMPTIONS.sequence.steadyPreRoll + (this.params.deployMode === 'workboat' ? ASSUMPTIONS.deploy.workboatMobilisation : 0);
       const h = ASSUMPTIONS.sequence.preRollStep;
       this.loadingPublisher?.({ active: true, progress: 0, label: 'Pre-rolling simulation to steady operation' });
       while (this.sweepline.time < target) {
@@ -326,6 +339,27 @@ export class SimController {
       if (p.standbyEnabled !== undefined && p.standbyEnabled !== prev.standbyEnabled) {
         this.log(p.standbyEnabled ? 'info' : 'warn', p.standbyEnabled ? 'Standby transfer path armed' : 'Standby transfer path disarmed');
       }
+      if (p.activeFlow !== undefined && p.activeFlow !== prev.activeFlow) {
+        this.log(
+          p.activeFlow ? 'info' : 'warn',
+          p.activeFlow ? `Active flow jets on — ${Math.round(this.params.jetLevel * 100)}% output` : 'Active flow jets off — curtain running as a passive guide',
+        );
+      }
+      if (p.jetLevel !== undefined && p.jetLevel !== prev.jetLevel && this.params.activeFlow) {
+        if (this.jetLogTimer) clearTimeout(this.jetLogTimer);
+        this.jetLogTimer = setTimeout(() => {
+          const v = this.params.jetLevel * ASSUMPTIONS.jets.conveyorSpeed;
+          this.log('info', `Jet output ${Math.round(this.params.jetLevel * 100)}% — conveyor ${v.toFixed(2)} m/s at the curtain face`);
+        }, 700);
+      }
+      if (p.deployMode !== undefined && p.deployMode !== prev.deployMode) {
+        this.log(
+          'info',
+          p.deployMode === 'popup'
+            ? 'Deployment method: pop-up from the seabed (applies to the next deployment)'
+            : 'Deployment method: workboat laying (applies to the next deployment)',
+        );
+      }
       if (p.skirtDepth !== undefined && p.skirtDepth !== prev.skirtDepth) {
         if (this.skirtLogTimer) clearTimeout(this.skirtLogTimer);
         this.skirtLogTimer = setTimeout(() => {
@@ -357,14 +391,22 @@ export class SimController {
       }
       return false;
     }
-    c.deploy();
+    c.deploy(this.params.deployMode);
+    this.deployCount++;
     tr.throatOpen = true;
     tr.acceptingNew = true;
     this.safeOpen.reset();
     this.standDown = false;
     this.timeline.find((s) => s.key === 'deploy')!.at = this.simTime;
     this.timeline.find((s) => s.key === 'recovery')!.at = null;
-    this.log('info', `Deployment started — ${this.params.anchorAngle}° anchor layout, ${c.length.toFixed(0)} m curtain, skirt ${this.params.skirtDepth.toFixed(1)} m`);
+    if (this.params.deployMode === 'popup') {
+      this.log(
+        'info',
+        `Pop-up deployment started — ${this.params.anchorAngle}° anchor layout, ${c.length.toFixed(0)} m curtain, skirt ${this.params.skirtDepth.toFixed(1)} m (no vessel needed)`,
+      );
+    } else {
+      this.log('info', `Workboat deployment requested — crew and vessel mobilising (~${Math.round(ASSUMPTIONS.deploy.workboatMobilisation / 60)} min, assumption)`);
+    }
     return true;
   }
 
@@ -410,7 +452,12 @@ export class SimController {
     }
     c.stow();
     this.standDown = true;
-    this.log('info', 'Curtain stowing — reeling in from the upstream anchor (auto-deploy suspended)');
+    this.log(
+      'info',
+      c.deployMode === 'popup'
+        ? 'Curtain stowing — deflating back to the seabed from the upstream anchor (auto-deploy suspended)'
+        : 'Curtain stowing — reeling in from the upstream anchor (auto-deploy suspended)',
+    );
     this.publish(true);
     return true;
   }
@@ -612,8 +659,15 @@ export class SimController {
       this.prevCurtainMode = c.mode;
     }
     if (c.mode === 'DEPLOYING') {
+      if (c.deployDelay <= 0 && !this.flag(`front${this.deployCount}`)) {
+        this.log('info', c.deployMode === 'popup' ? 'Float line inflating — curtain rising from the throat end' : 'Workboat on station — laying the curtain from the throat end');
+      }
       const pct = Math.floor(c.deployedFraction * 4) * 25;
-      if (pct === 50 && !this.flag('laid50')) this.log('info', 'Curtain 50% laid — throat section guiding');
+      if (pct === 50 && !this.flag('laid50')) this.log('info', `Curtain 50% ${c.deployMode === 'popup' ? 'risen' : 'laid'} — throat section guiding`);
+    }
+    // Active flow reports once it reaches the commanded output.
+    if (c.jetTarget > 0 && c.activeCount > 0 && c.jetOutput >= c.jetTarget * 0.9 && !this.flag(`jets${this.deployCount}`)) {
+      this.log('ok', `Active flow running — conveyor jets ${(c.jetTarget * ASSUMPTIONS.jets.conveyorSpeed).toFixed(2)} m/s along the face, foot jets lifting at the skirt edge`);
     }
 
     this.safeOpen.update(s, (l, m) => this.log(l, m));
@@ -789,7 +843,13 @@ export class SimController {
           : { code: 'WARNING', label: 'Warning received', detail: 'Preparing deployment', tone: 'warn' };
       return { code: 'READY', label: 'Ready', detail: 'SweepLine stowed — awaiting early warning', tone: 'ok' };
     }
-    if (c.mode === 'DEPLOYING') return { code: 'DEPLOYING', label: 'Deploying', detail: `Curtain ${(c.deployedFraction * 100).toFixed(0)}% laid`, tone: 'info' };
+    if (c.mode === 'DEPLOYING') {
+      if (c.deployDelay > 0)
+        return c.deployMode === 'workboat'
+          ? { code: 'DEPLOYING', label: 'Mobilising', detail: `Workboat on station in ${formatDuration(c.deployDelay)}`, tone: 'info' }
+          : { code: 'DEPLOYING', label: 'Deploying', detail: 'Pop-up: inflating float line', tone: 'info' };
+      return { code: 'DEPLOYING', label: 'Deploying', detail: `Curtain ${(c.deployedFraction * 100).toFixed(0)}% ${c.deployMode === 'popup' ? 'risen' : 'laid'}`, tone: 'info' };
+    }
     if (c.mode === 'STOWING') return { code: 'STANDBY', label: 'Stowing', detail: 'Bloom passed — recovering curtain', tone: 'info' };
     if (c.mode === 'UNREEFING') return { code: 'DEPLOYING', label: 'Re-arming', detail: 'Downstream-first re-engagement', tone: 'info' };
     if (!env.within) return { code: 'OUTSIDE_ENVELOPE', label: 'Outside envelope', detail: 'SafeOpen recommended', tone: 'alarm' };
@@ -841,6 +901,12 @@ export class SimController {
         normalVelocity: c.normalVelocity,
         activeFraction: c.activeCount / c.layout.segCount,
         clearanceMax: c.clearanceLimitedMax,
+        jetOutput: c.jetOutput,
+        jetConveyor: c.jetOutput * ASSUMPTIONS.jets.conveyorSpeed,
+        jetFlowM3s: c.jetOutput * ASSUMPTIONS.jets.designFlowM3s,
+        jetPowerKW: c.jetOutput ** 3 * ASSUMPTIONS.jets.designPowerKW,
+        deployMode: c.deployMode,
+        deployDelay: c.deployDelay,
       },
       transfer: {
         primary: tr.primaryStatus,

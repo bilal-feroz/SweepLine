@@ -1,7 +1,16 @@
 import { useApp } from '../app/store';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Inspector } from '../components/panels/Inspector';
-import { EventLogCard, LiveControlsCard, OperationsCard, RunSettingsCard, StressTestCard, TimelineWideCard, TransferCard } from '../components/panels/VisualiserPanels';
+import {
+  ActiveFlowCard,
+  EventLogCard,
+  LiveControlsCard,
+  OperationsCard,
+  RunSettingsCard,
+  StressTestCard,
+  TimelineWideCard,
+  TransferCard,
+} from '../components/panels/VisualiserPanels';
 import { CompareOverlay, CurrentCard, FlowLegend, SafetyBanner, UnderwaterHud, ViewportFooter, ViewportToolbar } from '../components/viewport/Hud';
 import { ViewportSlot } from '../components/viewport/ViewportSlot';
 
@@ -52,6 +61,7 @@ export function Visualiser() {
       </div>
       <aside className="flex w-[352px] shrink-0 flex-col gap-3 overflow-y-auto py-4 pr-4 min-[1600px]:w-[384px] min-[1600px]:py-5 min-[1600px]:pr-5 [&>*]:shrink-0">
         <OperationsCard />
+        <ActiveFlowCard />
         <StressTestCard />
         <LiveControlsCard />
         <TransferCard />

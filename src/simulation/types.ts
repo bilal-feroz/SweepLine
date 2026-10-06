@@ -4,6 +4,9 @@ export type EngineKind = 'baseline' | 'sweepline';
 export type AnchorAngle = 15 | 20 | 25;
 export const ANCHOR_ANGLES: readonly AnchorAngle[] = [15, 20, 25];
 
+/** Pop-up: stowed on the seabed and raised by inflating the float line. Workboat: laid by a vessel. */
+export type DeployMode = 'popup' | 'workboat';
+
 export interface SimParams {
   seed: number;
   /** Simulated agent budget (performance setting; rates scale with it). */
@@ -32,6 +35,12 @@ export interface SimParams {
   releaseDistance: number;
   /** Deploy automatically once the early warning arrives and the envelope is satisfied. */
   autoDeploy: boolean;
+  /** Active flow: conveyor and foot water jets built into the curtain. */
+  activeFlow: boolean;
+  /** Jet output, 0..1 of design flow. */
+  jetLevel: number;
+  /** How the curtain is deployed. */
+  deployMode: DeployMode;
   /** Reference conditions recorded with the run (not used by the agent model). */
   waterTemp: number;
   salinity: number;
@@ -52,6 +61,9 @@ export const DEFAULT_PARAMS: SimParams = {
   standbyEnabled: true,
   releaseDistance: 500,
   autoDeploy: true,
+  activeFlow: true,
+  jetLevel: 0.75,
+  deployMode: 'popup',
   waterTemp: 28.6,
   salinity: 41.2,
 };

@@ -70,8 +70,8 @@ export const SCENARIOS: Scenario[] = [
     name: 'Deep Bloom',
     tagline: 'Bloom sits below a shallow skirt',
     description:
-      'Most of the bloom sits deeper than the 2.5 m skirt and passes underneath. Switch to the underwater camera, then increase skirt depth to 4.0 m and watch interception recover.',
-    demonstrates: ['Under-skirt escape', 'Adjustable skirt depth trade-off'],
+      'Most of the bloom sits deeper than the 2.5 m skirt and passes underneath. The foot jets lift animals close to the hem, but a bloom that actively holds a deeper layer needs a deeper skirt: switch to the underwater camera, then increase skirt depth to 4.0 m and watch interception recover.',
+    demonstrates: ['Under-skirt escape', 'Adjustable skirt depth with foot jets'],
     params: { ...NORMAL, bloomDensity: 0.7, bloomMeanDepth: 3.4, bloomDepthSD: 0.45, skirtDepth: 2.5 },
     start: 'steady',
     tone: 'stress',
@@ -103,6 +103,21 @@ export const SCENARIOS: Scenario[] = [
     tone: 'stress',
   },
   {
+    id: 'slack-tide',
+    name: 'Slack Tide',
+    tagline: 'The current dies away during operation',
+    description:
+      'Starts in normal operation; the along-shore current then slackens to 0.06 m/s. A passive curtain stops sweeping and jellyfish stall against it, while the conveyor jets keep the bloom moving to the throat. Switch Active flow off to compare.',
+    demonstrates: ['Active flow independent of the tide', 'Conveyor jets vs passive sweep'],
+    params: { ...NORMAL },
+    start: 'steady',
+    script: [
+      { at: 30, action: { kind: 'params', params: { currentSpeed: 0.15 }, message: 'Current slackening — 0.15 m/s' } },
+      { at: 70, action: { kind: 'params', params: { currentSpeed: 0.06 }, message: 'Slack tide — current 0.06 m/s' } },
+    ],
+    tone: 'stress',
+  },
+  {
     id: 'transfer-failure',
     name: 'Transfer Failure',
     tagline: 'Primary transfer fault, standby takes over',
@@ -128,6 +143,17 @@ export const SCENARIOS: Scenario[] = [
       { at: 90, action: { kind: 'fail', failure: 'transferStandby' } },
     ],
     tone: 'failure',
+  },
+  {
+    id: 'workboat',
+    name: 'Workboat Deployment',
+    tagline: 'Same bloom, laid by boat instead of popping up',
+    description:
+      'The curtain is laid by a workboat after a 15-minute mobilisation (assumption) instead of rising from the seabed. The leading edge of the bloom reaches the intake before the curtain is in place: the late-deployment leak the pop-up curtain removes.',
+    demonstrates: ['Late-deployment leakage', 'Pop-up vs workboat response time'],
+    params: { ...NORMAL, deployMode: 'workboat' },
+    start: 'sequence',
+    tone: 'stress',
   },
 ];
 

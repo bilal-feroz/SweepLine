@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ChevronDown, Clock, Dices, Layers, Play, ShieldOff, SlidersHorizontal, Upload, Users, Waves, Wind, Zap } from 'lucide-react';
+import { ArrowDownToLine, ChevronDown, Clock, Dices, Hourglass, Layers, Play, Ship, ShieldOff, SlidersHorizontal, Upload, Users, Waves, Wind, Zap } from 'lucide-react';
 import { useRef, useState, type ReactNode } from 'react';
 import { useSnap } from '../app/hooks';
 import { useApp } from '../app/store';
@@ -28,6 +28,8 @@ const LOOK: Record<string, { tone: TileTone; icon: ReactNode; badge: string }> =
   'high-waves': { tone: 'cyan', icon: <Waves size={24} />, badge: 'Stress' },
   'transfer-failure': { tone: 'amber', icon: <Zap size={24} />, badge: 'Failure' },
   safeopen: { tone: 'red', icon: <ShieldOff size={24} />, badge: 'Fail-safe' },
+  'slack-tide': { tone: 'blue', icon: <Hourglass size={24} />, badge: 'Stress' },
+  workboat: { tone: 'amber', icon: <Ship size={24} />, badge: 'Compare' },
 };
 
 function describeStep(s: NonNullable<Scenario['script']>[number]): string {
@@ -75,6 +77,12 @@ function SecondaryParams({ p }: { p: SimParams }) {
       </span>
       <span>
         Standby <span className="text-ink-2">{p.standbyEnabled ? 'armed' : 'not armed'}</span>
+      </span>
+      <span>
+        Jets <span className="text-ink-2">{p.activeFlow ? `${Math.round(p.jetLevel * 100)}%` : 'off'}</span>
+      </span>
+      <span>
+        Deploy <span className="text-ink-2">{p.deployMode === 'popup' ? 'pop-up' : 'workboat'}</span>
       </span>
     </div>
   );

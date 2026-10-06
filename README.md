@@ -10,10 +10,25 @@ a coastal seawater intake. It acts **after** the plant's existing early warning:
 DETECT → DEPLOY → SWEEP → TRANSFER → RELEASE
 ```
 
-A smooth curtain is laid upstream of the intake at a shallow angle (15° / 20° / 25° pre-engineered
+A smooth curtain stands upstream of the intake at a shallow angle (15° / 20° / 25° pre-engineered
 anchor layouts). The current sweeps jellyfish sideways along it into a large, low-stress recovery
 throat. A large-aperture, low-shear transfer module carries them around the protected intake and
 releases them alive down-current. **Existing intake screens remain unchanged.**
+
+**SweepLine Active** adds two things to the curtain itself:
+
+- **It pops up.** The curtain is stowed on the seabed along its anchor line and rises when its float
+  line is inflated from the throat end, about a minute after the warning, with no vessel. (A
+  workboat-laid option is kept for comparison.)
+- **It makes its own current.** Low-velocity water jets built into the float line and hem drive a
+  conveyor current along the bloom face toward the throat, so the sweep keeps going when the natural
+  current is weak, and push water upward at the skirt edge to cancel the downward flow that drags
+  jellyfish underneath. No air bubbles and no moving parts in the animals' path.
+
+Jet speeds, flow and power (`jets` in `src/config/assumptions.ts`) are first estimates from plane
+wall-jet scaling, to be sized by CFD and flume tests. Compare the passive and active curtain on the
+same seed with the *Water jets* switch on the 3D Visualiser, and the *Slack Tide* and *Workboat
+Deployment* scenarios.
 
 > Engineering design visualiser. Performance values are simulation estimates and are not
 > field-validated. Reference coastal intake geometry is schematic and does not represent

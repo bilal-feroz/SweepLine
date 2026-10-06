@@ -103,6 +103,37 @@ const TESTS: Array<{ name: string; params: string; measures: string; calibrates:
     status: 'PENDING',
   },
   {
+    name: 'Conveyor jets',
+    params: '0 – 100 % jet output',
+    measures: 'Along-face speed, guidance at slack water',
+    calibrates: [
+      { key: 'jets.conveyorSpeed', value: `${A.jets.conveyorSpeed} m/s` },
+      { key: 'jets.conveyorBand', value: `${A.jets.conveyorBand} m` },
+    ],
+    facility: 'Flume',
+    status: 'PENDING',
+  },
+  {
+    name: 'Foot jets',
+    params: 'Uplift × skirt depth',
+    measures: 'Under-skirt escape with jets on and off',
+    calibrates: [
+      { key: 'jets.footUplift', value: `${A.jets.footUplift} m/s` },
+      { key: 'jets.footReach', value: `${A.jets.footReach} m` },
+    ],
+    facility: 'Flume',
+    status: 'PENDING',
+  },
+  {
+    name: 'Jet shear on bells',
+    params: 'Nozzle exit 0.5 – 2 m/s',
+    measures: 'Bell damage threshold for live Catostylus',
+    calibrates: [],
+    note: 'Sets the maximum nozzle exit velocity — a hard design limit, not a model parameter.',
+    facility: 'Live tests',
+    status: 'PENDING',
+  },
+  {
     name: 'Curtain contact time',
     params: 'Angle × speed',
     measures: 'Contact duration, behaviour at the curtain face',
@@ -130,6 +161,17 @@ const TESTS: Array<{ name: string; params: string; measures: string; calibrates:
     note: 'Release viability — survival is not modelled by the simulation.',
     facility: 'Live tests',
     status: 'PENDING',
+  },
+  {
+    name: 'Pop-up rise',
+    params: 'Inflation from the seabed',
+    measures: 'Time to full height, fouling after storage',
+    calibrates: [
+      { key: 'deploy.popUpDelay', value: `${A.deploy.popUpDelay} s` },
+      { key: 'deploy.popUpSpeed', value: `${A.deploy.popUpSpeed} m/s` },
+    ],
+    facility: 'Pilot',
+    status: 'FUTURE',
   },
   {
     name: 'SafeOpen reefing',
@@ -208,6 +250,11 @@ function Targets() {
     { metric: 'Bell damage after transfer', target: 'TBD with biologists', sim: 'Not modelled' },
     { metric: 'Post-transfer survival (72 h)', target: 'TBD with biologists', sim: 'Not modelled' },
     { metric: 'SafeOpen completion (fully reefed)', target: '≤ 10 min', sim: 'See SafeOpen scenario' },
+    {
+      metric: 'Warning to fully deployed (pop-up)',
+      target: '≤ 5 min',
+      sim: `${((A.deploy.popUpDelay + ((snap?.curtain.length ?? 120) + A.curtain.skirtDropLag + 3) / A.deploy.popUpSpeed) / 60).toFixed(1)} min`,
+    },
   ];
   const th = 'pb-2 text-[11px] font-semibold tracking-[0.08em] text-muted uppercase';
   return (

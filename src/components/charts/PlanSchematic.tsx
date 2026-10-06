@@ -1,5 +1,5 @@
 import { SITE } from '../../config/site';
-import { getCurtainLayout } from '../../simulation/geometry';
+import { getCurtainLayout, pointAtArc } from '../../simulation/geometry';
 import { ANCHOR_ANGLES, type AnchorAngle } from '../../simulation/types';
 import { ICON_PATHS, type DomainIcon } from '../ui/icons';
 
@@ -41,7 +41,7 @@ export function SvgCallout({ x, y, icon, text, color, anchor = 'start' }: { x: n
  * Plan-view schematic drawn directly from the simulation geometry (site config
  * and curtain layouts) — reference geometry, not facility data.
  */
-export function PlanSchematic({ selected, reefFraction = 0 }: { selected: AnchorAngle; reefFraction?: number }) {
+export function PlanSchematic({ selected, reefFraction = 0, jets = false }: { selected: AnchorAngle; reefFraction?: number; jets?: boolean }) {
   const I = SITE.intake;
   const sel = getCurtainLayout(selected);
   const th = sel.throat;
@@ -65,6 +65,9 @@ export function PlanSchematic({ selected, reefFraction = 0 }: { selected: Anchor
         </pattern>
         <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <path d="M0,0 L10,5 L0,10 z" fill="#7dd3fc" />
+        </marker>
+        <marker id="arr-jet" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#22d3ee" />
         </marker>
         <linearGradient id="sea" x1="0" x2="0" y1="0" y2="1">
           <stop offset="0" stopColor="#0f4250" />
@@ -120,6 +123,25 @@ export function PlanSchematic({ selected, reefFraction = 0 }: { selected: Anchor
           </g>
         );
       })}
+      {/* Conveyor jets: flow along the bloom face toward the throat */}
+      {jets &&
+        Array.from({ length: Math.max(0, Math.floor((sel.length - 16) / 22)) }, (_, i) => {
+          const f = pointAtArc(sel, 10 + i * 22);
+          const ox = f.x + f.nx * 4;
+          const oz = f.z + f.nz * 4;
+          return (
+            <line
+              key={i}
+              x1={sx(ox)}
+              y1={sy(oz)}
+              x2={sx(ox + f.tx * 9)}
+              y2={sy(oz + f.tz * 9)}
+              stroke="#22d3ee"
+              strokeWidth="2"
+              markerEnd="url(#arr-jet)"
+            />
+          );
+        })}
       {/* Upstream-first reef marker */}
       {reefFraction > 0 &&
         (() => {
@@ -132,7 +154,7 @@ export function PlanSchematic({ selected, reefFraction = 0 }: { selected: Anchor
       <circle cx={sx(SITE.release.x)} cy={sy(SITE.release.z)} r={12 * S + 6} fill="rgba(45,212,191,0.14)" stroke="#2DD4BF" strokeDasharray="3 3" />
       {/* Callouts */}
       <SvgCallout x={sx(-208)} y={sy(36)} icon="jellyfish" text="Bloom approaching" color="#cfe3ff" />
-      <SvgCallout x={sx(sel.px[mid]) - 30} y={sy(sel.pz[mid]) + 34} icon="curtain" text={`Guide curtain · ${selected}°`} color="#F5B94C" anchor="end" />
+      <SvgCallout x={sx(sel.px[mid]) - 30} y={sy(sel.pz[mid]) + 34} icon="curtain" text={jets ? `Active curtain · ${selected}°` : `Guide curtain · ${selected}°`} color="#F5B94C" anchor="end" />
       <SvgCallout x={sx(th.mx)} y={sy(th.mz) + 30} icon="throat" text="Recovery throat" color="#22D3EE" anchor="end" />
       <SvgCallout x={sx(83)} y={sy(46)} icon="transfer" text="Low-shear transfer line" color="#22D3EE" anchor="end" />
       <SvgCallout x={sx(SITE.release.x) - 26} y={sy(SITE.release.z)} icon="release" text="Safe release (down-current)" color="#2DD4BF" anchor="end" />

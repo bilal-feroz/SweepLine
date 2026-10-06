@@ -329,6 +329,90 @@ export function TimelineWideCard() {
   );
 }
 
+// ---------------------------------------------------------------- SweepLine Active
+
+function JetStat({ value, unit, label }: { value: string; unit: string; label: string }) {
+  return (
+    <div className="card-inner px-2 py-2">
+      <div className="num text-[16px] leading-tight text-cyan">
+        {value}
+        <span className="ml-0.5 text-[11px] text-ink-2">{unit}</span>
+      </div>
+      <div className="text-[11px] text-muted">{label}</div>
+    </div>
+  );
+}
+
+/** The core idea: a curtain that pops up from the seabed and makes its own current with built-in water jets. */
+export function ActiveFlowCard() {
+  const snap = useSnap();
+  if (!snap) return null;
+  const p = snap.params;
+  const c = snap.curtain;
+  const D = ASSUMPTIONS.deploy;
+  const popUpMin = (D.popUpDelay + (c.length + ASSUMPTIONS.curtain.skirtDropLag + 3) / D.popUpSpeed) / 60;
+  const running = c.jetOutput > 0.01;
+  return (
+    <Panel
+      title="SweepLine Active"
+      icon={<Waves size={18} />}
+      subtitle="A pop-up curtain that makes its own current"
+      actions={
+        <Pill tone={p.activeFlow ? 'cyan' : 'muted'} dot={p.activeFlow && running} className="!h-[22px] !px-2 !text-[10px]">
+          {p.activeFlow ? (running ? 'JETS ON' : 'READY') : 'PASSIVE'}
+        </Pill>
+      }
+      bodyClassName="flex flex-col gap-3.5"
+    >
+      <div>
+        <div className="mb-1.5 flex items-center justify-between text-[13px]">
+          <span className="text-ink-2">Deployment</span>
+          <span className="text-[11.5px] text-muted">applies to the next deployment</span>
+        </div>
+        <Segmented
+          value={p.deployMode}
+          onChange={(v) => controller.setParams({ deployMode: v })}
+          options={[
+            { value: 'popup', label: 'Pop-up (seabed)' },
+            { value: 'workboat', label: 'Workboat' },
+          ]}
+        />
+        <p className="mt-1.5 text-[11.5px] leading-snug text-dim">
+          {p.deployMode === 'popup'
+            ? `Stowed on the seabed; the float line inflates from the throat end — about ${popUpMin.toFixed(1)} min after the warning, no vessel.`
+            : `A vessel mobilises (~${Math.round(D.workboatMobilisation / 60)} min, assumption), then lays the curtain at ${ASSUMPTIONS.curtain.deploySpeed} m/s.`}
+        </p>
+      </div>
+      <div className="border-t border-line pt-3">
+        <Toggle
+          checked={p.activeFlow}
+          onChange={(v) => controller.setParams({ activeFlow: v })}
+          label="Water jets (conveyor + foot)"
+          hint="Conveyor along the face; foot jets lift jellyfish at the skirt edge"
+        />
+        <div className="mt-2">
+          <Slider
+            label="Jet output"
+            value={p.jetLevel}
+            min={0.1}
+            max={1}
+            step={0.05}
+            display={`${Math.round(p.jetLevel * 100)}%`}
+            disabled={!p.activeFlow}
+            onChange={(v) => controller.setParams({ jetLevel: v })}
+          />
+        </div>
+        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+          <JetStat value={c.jetConveyor.toFixed(2)} unit="m/s" label="at the face" />
+          <JetStat value={c.jetFlowM3s.toFixed(1)} unit="m³/s" label="water" />
+          <JetStat value={String(Math.round(c.jetPowerKW))} unit="kW" label="pump power" />
+        </div>
+        <p className="mt-2 text-[11px] leading-snug text-dim">First estimates from wall-jet scaling — to be sized by CFD and flume tests.</p>
+      </div>
+    </Panel>
+  );
+}
+
 // ---------------------------------------------------------------- live controls
 
 export function LiveControlsCard() {

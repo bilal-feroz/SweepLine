@@ -2,17 +2,20 @@ import { ASSUMPTIONS } from '../config/assumptions';
 import { seabedDepth } from '../config/site';
 import { waveElevation } from './waves';
 import type { CurtainLayout } from './geometry';
-import type { CurtainMode } from './types';
+import type { CurtainMode, DeployMode } from './types';
 
 const C = ASSUMPTIONS.curtain;
+const D = ASSUMPTIONS.deploy;
 
 /**
  * Physical state of the SweepLine guide curtain.
  *
- * Deployment lays the curtain from the recovery throat (where the reel is
- * stowed) toward the prepared upstream anchor. Reefing always starts at the
+ * Deployment works from the recovery throat toward the prepared upstream anchor:
+ * a pop-up curtain rises from the seabed as its float line inflates, or a
+ * workboat lays it from the throat-side reel. Reefing always starts at the
  * UPSTREAM end, so new bloom traffic stops entering first while traffic already
- * on the curtain continues to the throat.
+ * on the curtain continues to the throat. The built-in water jets run on every
+ * guiding segment.
  */
 export class CurtainState {
   layout: CurtainLayout;
@@ -23,6 +26,14 @@ export class CurtainState {
   reefFront = 0;
   /** Reef front speed (m/s), commanded by the SafeOpen controller. */
   reefSpeed = 0;
+  /** How the current (or next) deployment is carried out. */
+  deployMode: DeployMode = 'popup';
+  /** Seconds left before the deployment front starts moving (valve checks or vessel mobilisation). */
+  deployDelay = 0;
+  private deployRate: number = D.popUpSpeed;
+  /** Commanded jet output (0..1) and the ramped output actually delivered. */
+  jetTarget = 0;
+  jetOutput = 0;
   skirtActual: number;
   skirtTarget: number;
 
@@ -85,9 +96,12 @@ export class CurtainState {
     return Math.max(0, this.layout.length - this.deployFront);
   }
 
-  deploy(): boolean {
+  deploy(mode: DeployMode = 'popup'): boolean {
     if (this.mode !== 'STOWED') return false;
     this.mode = 'DEPLOYING';
+    this.deployMode = mode;
+    this.deployDelay = mode === 'popup' ? D.popUpDelay : D.workboatMobilisation;
+    this.deployRate = mode === 'popup' ? D.popUpSpeed : C.deploySpeed;
     this.deployFront = 0;
     this.reefFront = 0;
     return true;
@@ -120,7 +134,11 @@ export class CurtainState {
     const L = this.layout.length;
     switch (this.mode) {
       case 'DEPLOYING':
-        this.deployFront += C.deploySpeed * dt;
+        if (this.deployDelay > 0) {
+          this.deployDelay = Math.max(0, this.deployDelay - dt);
+          break;
+        }
+        this.deployFront += this.deployRate * dt;
         if (this.deployFront >= L + C.skirtDropLag + 3) {
           this.deployFront = L;
           this.mode = 'DEPLOYED';
@@ -184,6 +202,12 @@ export class CurtainState {
       active += on;
     }
     this.activeCount = active;
+
+    // Jets ramp toward the commanded output while any segment is guiding.
+    const jetGoal = active > 0 ? this.jetTarget : 0;
+    const jetStep = dt / ASSUMPTIONS.jets.rampTime;
+    const jd = jetGoal - this.jetOutput;
+    this.jetOutput += Math.abs(jd) <= jetStep ? jd : Math.sign(jd) * jetStep;
   }
 
   /** Minimum skirt–seabed clearance along the curtain for the current setpoint (m). */
