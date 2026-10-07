@@ -65,18 +65,51 @@ export function presetPose(key: Exclude<CameraPreset, 'free'>, layout: CurtainLa
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
 /**
+ * Flight paths: 'arc' lifts the camera along a quadratic curve (preset changes);
+ * 'orbit' interpolates distance, tilt and heading around a moving target, so a
+ * straight-down view can swing into a perspective view without spinning.
+ */
+export type FlightPath = 'arc' | 'orbit';
+
+interface Tween {
+  from: CameraPose;
+  to: CameraPose;
+  ctrl: THREE.Vector3;
+  t: number;
+  duration: number;
+  path: FlightPath;
+}
+
+const _sphA = new THREE.Spherical();
+const _sphB = new THREE.Spherical();
+const _off = new THREE.Vector3();
+
+/**
+ * Pose at linear progress t (0..1) of an orbit flight — the curve flyTo(…, 'orbit')
+ * follows: target lerped, distance in log space, shortest heading turn, eased.
+ */
+export function orbitPose(from: CameraPose, to: CameraPose, t: number, out: CameraPose): CameraPose {
+  const k = ease(t);
+  _sphA.setFromVector3(_off.subVectors(from.pos, from.target));
+  _sphB.setFromVector3(_off.subVectors(to.pos, to.target));
+  let dTheta = _sphB.theta - _sphA.theta;
+  while (dTheta > Math.PI) dTheta -= Math.PI * 2;
+  while (dTheta < -Math.PI) dTheta += Math.PI * 2;
+  const r = Math.exp(THREE.MathUtils.lerp(Math.log(_sphA.radius), Math.log(_sphB.radius), k));
+  const phi = THREE.MathUtils.lerp(_sphA.phi, _sphB.phi, k);
+  out.target.lerpVectors(from.target, to.target, k);
+  out.pos.setFromSphericalCoords(r, phi, _sphA.theta + dTheta * k).add(out.target);
+  return out;
+}
+
+/**
  * Smooth camera transitions between presets (no hard cuts). A quadratic arc
  * lifts long moves and dives cleanly through the surface for underwater views.
  * Any user interaction cancels the tween and hands control to OrbitControls.
  */
 export class CameraRig {
-  private tween: {
-    from: CameraPose;
-    to: CameraPose;
-    ctrl: THREE.Vector3;
-    t: number;
-    duration: number;
-  } | null = null;
+  private tween: Tween | null = null;
+  private readonly orbitOut: CameraPose = { pos: new THREE.Vector3(), target: new THREE.Vector3() };
   current: CameraPreset = 'aerial';
   /** World position to follow (e.g. a selected jellyfish). */
   followTarget: THREE.Vector3 | null = null;
@@ -107,7 +140,7 @@ export class CameraRig {
     this.onPresetChange?.(key);
   }
 
-  flyTo(to: CameraPose, duration = 1.6): void {
+  flyTo(to: CameraPose, duration = 1.6, path: FlightPath = 'arc'): void {
     const from: CameraPose = { pos: this.camera.position.clone(), target: this.controls.target.clone() };
     const mid = from.pos.clone().lerp(to.pos, 0.5);
     const dist = from.pos.distanceTo(to.pos);
@@ -115,7 +148,31 @@ export class CameraRig {
     const lift = Math.min(60, dist * 0.25);
     if (crossing) mid.y = Math.max(from.pos.y, to.pos.y, 6) + lift * 0.3;
     else if (to.pos.y > 0) mid.y = Math.max(mid.y, Math.max(from.pos.y, to.pos.y) + lift * 0.4);
-    this.tween = { from, to, ctrl: mid, t: 0, duration };
+    this.tween = { from, to: { pos: to.pos.clone(), target: to.target.clone() }, ctrl: mid, t: 0, duration, path };
+  }
+
+  /** Place the camera at an exact pose (no transition; the active preset is unchanged). */
+  setPose(pose: CameraPose): void {
+    this.tween = null;
+    this.camera.position.copy(pose.pos);
+    this.controls.target.copy(pose.target);
+    this.controls.update();
+  }
+
+  private applyTween(tw: Tween): void {
+    if (tw.path === 'orbit') {
+      orbitPose(tw.from, tw.to, tw.t, this.orbitOut);
+      this.camera.position.copy(this.orbitOut.pos);
+      this.controls.target.copy(this.orbitOut.target);
+      return;
+    }
+    const k = ease(tw.t);
+    const a = tw.from.pos;
+    const b = tw.to.pos;
+    const c = tw.ctrl;
+    const u = 1 - k;
+    this.camera.position.set(u * u * a.x + 2 * u * k * c.x + k * k * b.x, u * u * a.y + 2 * u * k * c.y + k * k * b.y, u * u * a.z + 2 * u * k * c.z + k * k * b.z);
+    this.controls.target.lerpVectors(tw.from.target, tw.to.target, k);
   }
 
   snap(key: Exclude<CameraPreset, 'free'>, layout: CurtainLayout): void {
@@ -131,13 +188,7 @@ export class CameraRig {
     if (this.tween) {
       const tw = this.tween;
       tw.t = Math.min(1, tw.t + dt / tw.duration);
-      const k = ease(tw.t);
-      const a = tw.from.pos;
-      const b = tw.to.pos;
-      const c = tw.ctrl;
-      const u = 1 - k;
-      this.camera.position.set(u * u * a.x + 2 * u * k * c.x + k * k * b.x, u * u * a.y + 2 * u * k * c.y + k * k * b.y, u * u * a.z + 2 * u * k * c.z + k * k * b.z);
-      this.controls.target.lerpVectors(tw.from.target, tw.to.target, k);
+      this.applyTween(tw);
       if (tw.t >= 1) this.tween = null;
     } else if (this.followTarget) {
       const delta = this.followTarget.clone().sub(this.controls.target).multiplyScalar(Math.min(1, dt * 2.5));

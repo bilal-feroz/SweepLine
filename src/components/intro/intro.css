@@ -1,0 +1,390 @@
+/* Geographic opening sequence (see MapIntro.tsx). Colours follow the app tokens in index.css. */
+
+.sl-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  overflow: hidden;
+  cursor: default;
+  user-select: none;
+  -webkit-user-select: none;
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+}
+
+.sl-intro-map {
+  position: absolute;
+  inset: 0;
+}
+
+/* Water: almost-black navy, a faint lift toward the centre and a fixed grain. */
+.sl-intro-water {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(130% 95% at 50% 44%, #08131c 0%, #060e15 52%, #04090e 100%);
+}
+.sl-intro-water::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.045;
+  background-size: 240px 240px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.75 0 0 0 0 0.88 0 0 0 0 0.95 0 0 0 1 0'/></filter><rect width='240' height='240' filter='url(%23n)'/></svg>");
+}
+
+.sl-intro-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* ---------------------------------------------------------------- geographic labels */
+.sl-intro-labels {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.sl-ml {
+  position: absolute;
+  left: 0;
+  top: 0;
+  white-space: nowrap;
+  will-change: transform, opacity;
+  text-shadow:
+    0 1px 2px rgba(3, 8, 12, 0.85),
+    0 0 8px rgba(3, 8, 12, 0.6);
+}
+.sl-ml-text {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translate(-50%, -50%);
+  line-height: 1.2;
+}
+.sl-ml[data-dot] .sl-ml-text {
+  align-items: flex-start;
+  transform: translate(8px, -50%);
+}
+.sl-ml-dot {
+  position: absolute;
+  left: -2.5px;
+  top: -2.5px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #b9cbd3;
+  box-shadow: 0 0 0 2px rgba(5, 11, 17, 0.75);
+}
+.sl-ml-en {
+  font-size: 12px;
+  font-weight: 500;
+  color: #b9cbd3;
+}
+.sl-ml-ar {
+  margin-top: 1px;
+  font-size: 11.5px;
+  color: rgba(185, 203, 211, 0.62);
+}
+.sl-ml[data-kind='country'] .sl-ml-en {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(160, 185, 197, 0.55);
+}
+.sl-ml[data-kind='country'] .sl-ml-ar {
+  color: rgba(160, 185, 197, 0.42);
+}
+.sl-ml[data-kind='sea'] .sl-ml-en {
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: rgba(121, 160, 180, 0.6);
+}
+.sl-ml[data-kind='sea'] .sl-ml-ar {
+  color: rgba(121, 160, 180, 0.45);
+}
+.sl-ml[data-kind='emirate'] .sl-ml-en,
+.sl-ml[data-kind='region'] .sl-ml-en {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(165, 222, 235, 0.72);
+}
+.sl-ml[data-kind='emirate'] .sl-ml-ar,
+.sl-ml[data-kind='region'] .sl-ml-ar {
+  color: rgba(165, 222, 235, 0.5);
+}
+.sl-ml[data-kind='capital'] .sl-ml-en {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e7f1f5;
+}
+.sl-ml[data-kind='capital'] .sl-ml-dot {
+  width: 7px;
+  height: 7px;
+  left: -3.5px;
+  top: -3.5px;
+  background: #e7f1f5;
+}
+.sl-ml[data-kind='city'] .sl-ml-en {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #d5e4ea;
+}
+.sl-ml[data-kind='town'] .sl-ml-en {
+  font-size: 11.5px;
+  color: #9fb4bf;
+}
+.sl-ml[data-kind='town'] .sl-ml-dot {
+  width: 4px;
+  height: 4px;
+  left: -2px;
+  top: -2px;
+  background: #7992a0;
+}
+.sl-ml[data-kind='island'] .sl-ml-en {
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: rgba(150, 190, 205, 0.72);
+}
+.sl-ml[data-kind='island'] .sl-ml-ar {
+  font-size: 10.5px;
+  color: rgba(150, 190, 205, 0.5);
+}
+.sl-ml[data-kind='road'] .sl-ml-text {
+  transform: translate(-50%, -135%);
+}
+.sl-ml[data-kind='road'] .sl-ml-en {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: rgba(150, 185, 200, 0.62);
+}
+
+/* ---------------------------------------------------------------- project annotations */
+.sl-intro-annot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  white-space: nowrap;
+  will-change: transform, opacity;
+  text-shadow: 0 1px 3px rgba(3, 8, 12, 0.9);
+}
+.sl-intro-site {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-left: 12px;
+  border-left: 1px solid rgba(34, 211, 238, 0.55);
+}
+.sl-intro-site-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #22d3ee;
+}
+.sl-intro-site-sub {
+  font-size: 11.5px;
+  color: #9fb4bf;
+}
+.sl-intro-intake {
+  transform-origin: 0 0;
+  margin-top: -7px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #f5b94c;
+}
+.sl-intro-current {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(45, 212, 191, 0.9);
+}
+.sl-intro-arrow {
+  display: inline-block;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* ---------------------------------------------------------------- captions & hand-off text */
+.sl-intro-captions,
+.sl-intro-handoff {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+.sl-intro-cap {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  white-space: nowrap;
+}
+.sl-intro-cap-en {
+  font-size: clamp(18px, 1.55vw, 27px);
+  font-weight: 600;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  color: #eaf4f7;
+  text-shadow: 0 1px 12px rgba(3, 8, 12, 0.8);
+}
+.sl-intro-cap-ar {
+  font-size: clamp(15px, 1.2vw, 21px);
+  font-weight: 500;
+  color: rgba(185, 203, 211, 0.78);
+}
+.sl-intro-handoff {
+  text-shadow:
+    0 1px 2px rgba(3, 8, 12, 0.9),
+    0 0 12px rgba(3, 8, 12, 0.55);
+}
+.sl-intro-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--color-red);
+}
+.sl-intro-eyebrow[data-tone='amber'] {
+  color: var(--color-amber);
+}
+.sl-intro-eyebrow-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.sl-intro-pipeline {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: rgba(121, 146, 160, 0.75);
+}
+.sl-intro-step-arrow {
+  margin: 0 10px;
+  color: rgba(121, 146, 160, 0.5);
+}
+.sl-intro-pipeline [data-step] {
+  transition: color 180ms ease;
+}
+.sl-intro-pipeline [data-step][data-lit] {
+  color: #2dd4bf;
+}
+.sl-intro-progress {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-ink-2);
+}
+.sl-intro-progress-track {
+  display: block;
+  width: 220px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(150, 200, 220, 0.14);
+  overflow: hidden;
+}
+.sl-intro-progress-bar {
+  display: block;
+  height: 100%;
+  transform-origin: 0 50%;
+  background: linear-gradient(90deg, var(--color-cyan), var(--color-teal));
+  transition: transform 200ms linear;
+}
+
+/* ---------------------------------------------------------------- frame mask (map → viewport) */
+.sl-intro-mask {
+  position: absolute;
+  border-radius: 16px;
+  pointer-events: none;
+  box-shadow: 0 0 0 200vmax rgba(5, 11, 17, var(--mask, 0));
+  outline: 1px solid rgba(150, 200, 220, calc(0.12 * var(--mask, 0)));
+}
+
+/* ---------------------------------------------------------------- wordmark, scale, attribution */
+.sl-intro-wordmark {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.sl-intro-wordmark-name {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  color: #fff;
+}
+.sl-intro-wordmark-tag {
+  font-size: 12.5px;
+  color: var(--color-muted);
+}
+.sl-intro-scale {
+  position: absolute;
+  left: 24px;
+  bottom: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  pointer-events: none;
+}
+.sl-intro-scale-text {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: rgba(185, 203, 211, 0.62);
+}
+.sl-intro-scale-bar {
+  display: block;
+  height: 5px;
+  border: 1px solid rgba(185, 203, 211, 0.5);
+  border-top: none;
+}
+.sl-intro-attrib {
+  position: absolute;
+  right: 18px;
+  bottom: 16px;
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  color: rgba(185, 203, 211, 0.6);
+  pointer-events: none;
+}

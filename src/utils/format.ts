@@ -20,6 +20,15 @@ export function mmss(seconds: number): string {
   return `${String(m).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 }
 
+export function bloomLabel(density: number): string {
+  return density >= 0.9 ? 'Extreme bloom' : density >= 0.65 ? 'Dense bloom' : density >= 0.4 ? 'Moderate bloom' : 'Light bloom';
+}
+
+/** "Dense bloom approaching" and its tone for a bloom density (Live headline and the opening intro). */
+export function approachingBloom(density: number): { text: string; tone: 'red' | 'amber' } {
+  return { text: `${bloomLabel(density)} approaching`, tone: density >= 0.65 ? 'red' : 'amber' };
+}
+
 export function cn(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(' ');
 }

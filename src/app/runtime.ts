@@ -77,7 +77,10 @@ function installDevHooks(sm: SceneManager): void {
     const noCanvas = (n: HTMLElement) => !(n instanceof HTMLCanvasElement);
     const root = document.getElementById('root')!;
     const thumbs = [...root.querySelectorAll('canvas')].filter((c) => c !== gl);
-    const full = await toPng(root, { pixelRatio: 1, filter: noCanvas });
+    // Full-screen overlays (the opening intro) sit above the 3D view: composite them last.
+    const overlays = [...root.querySelectorAll<HTMLElement>('[data-capture-overlay]')];
+    const isOverlay = (n: HTMLElement) => n instanceof HTMLElement && n.dataset.captureOverlay !== undefined;
+    const full = await toPng(root, { pixelRatio: 1, filter: (n) => noCanvas(n) && !isOverlay(n) });
     const slot = gl.closest('[data-viewport]') as HTMLElement | null;
     let overlay: string | null = null;
     if (slot) {
@@ -107,6 +110,11 @@ function installDevHooks(sm: SceneManager): void {
         const sr = slot.getBoundingClientRect();
         ctx.drawImage(o, sr.left - rr.left, sr.top - rr.top, sr.width, sr.height);
       }
+    }
+    for (const el of overlays) {
+      const img = await loadImage(await toPng(el, { pixelRatio: 1, filter: noCanvas }));
+      const r = el.getBoundingClientRect();
+      ctx.drawImage(img, r.left - rr.left, r.top - rr.top, r.width, r.height);
     }
     await post(name, c.toDataURL('image/png'));
     return `${c.width}x${c.height}`;

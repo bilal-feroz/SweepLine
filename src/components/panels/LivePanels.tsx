@@ -18,7 +18,7 @@ import { useSnap } from '../../app/hooks';
 import { useApp } from '../../app/store';
 import { controller, PHASE_LABELS, type SimSnapshot } from '../../simulation/SimController';
 import type { FailureKey } from '../../simulation/types';
-import { clockTime, cn, mmss, pct } from '../../utils/format';
+import { approachingBloom, bloomLabel, clockTime, cn, mmss, pct } from '../../utils/format';
 import { EnvelopeBadge } from '../layout/PageHeader';
 import { useOutsideClose } from '../layout/TopBar';
 import { Segmented, Toggle } from '../ui/Controls';
@@ -30,15 +30,10 @@ type Tone = 'red' | 'amber' | 'cyan' | 'muted';
 const TONE_TEXT: Record<Tone, string> = { red: 'text-red', amber: 'text-amber', cyan: 'text-cyan', muted: 'text-ink-2' };
 const TONE_DOT: Record<Tone, string> = { red: 'bg-red', amber: 'bg-amber', cyan: 'bg-cyan', muted: 'bg-muted' };
 
-function bloomLabel(density: number): string {
-  return density >= 0.9 ? 'Extreme bloom' : density >= 0.65 ? 'Dense bloom' : density >= 0.4 ? 'Moderate bloom' : 'Light bloom';
-}
-
 /** The situation: what the sea is doing. */
 function situation(s: SimSnapshot): { text: string; tone: Tone } {
-  const b = bloomLabel(s.params.bloomDensity);
-  if (!s.bloom.active) return { text: `${b} passed — curtain clearing`, tone: 'cyan' };
-  return { text: `${b} approaching`, tone: s.params.bloomDensity >= 0.65 ? 'red' : 'amber' };
+  if (!s.bloom.active) return { text: `${bloomLabel(s.params.bloomDensity)} passed — curtain clearing`, tone: 'cyan' };
+  return approachingBloom(s.params.bloomDensity);
 }
 
 /** The response: what SweepLine is doing about it. */
@@ -85,7 +80,7 @@ export function LiveHeadline() {
   const under = sw.underSkirtPct;
   return (
     <div className="glass pointer-events-auto w-[500px] max-w-full !rounded-2xl px-5 py-4 shadow-2xl">
-      <div className={cn('flex items-center gap-2 text-[12px] font-semibold tracking-[0.14em] uppercase', TONE_TEXT[sit.tone])}>
+      <div data-live-eyebrow className={cn('flex items-center gap-2 text-[12px] font-semibold tracking-[0.14em] uppercase', TONE_TEXT[sit.tone])}>
         <span className={cn('h-2 w-2 animate-pulse-soft rounded-full', TONE_DOT[sit.tone])} />
         {sit.text}
       </div>

@@ -45,8 +45,10 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173. The app pre-rolls the simulation for a moment, then opens on the
-Overview with SweepLine in live operation.
+Open http://localhost:5173. A five-second geographic intro plays while the simulation pre-rolls,
+then hands off into Live Simulation with SweepLine in live operation (see
+[Opening intro](#opening-intro)). Press any key or click to skip it; add `?intro=0` to the URL to
+turn it off.
 
 ### Build
 
@@ -69,6 +71,51 @@ Three pages:
 | **01 Live Simulation** | The 3D twin fills the screen. A headline states the situation (e.g. *Dense bloom approaching*), SweepLine's response (*SweepLine deployed · water jets on*) and the result: diverted, fewer intake contacts, under-skirt escape. Compact timeline, envelope status, **Stress test** (faults, operator SafeOpen, jets on/off, pop-up vs workboat), event log on demand. SafeOpen steps appear only while SafeOpen runs. Scenarios are picked from the top bar. |
 | **02 How It Works** | *Don't stop the bloom. Give it another path.* Deploy → Sweep → Recover → Release, the plan view, the current/angle diagram and the three-layer safety story. Engineering detail (side section, specification, operating envelope) sits behind **Technical details**. |
 | **03 Evidence** | Same-seed result (fewer intake contacts), diversion efficiency and under-skirt escape, one with/without chart, validation status (built / next) and the run-data export (JSON / CSV). Simulation estimates — not field-validated. |
+
+### Opening intro
+
+When the app opens on Live Simulation, an animated map takes the viewer from the **United Arab
+Emirates** to the **Abu Dhabi emirate**, west along the **Al Dhafra** coast to the **Al Dhannah
+coast**, and onto the **SweepLine reference site**. There the real coastline straightens into the
+schematic revetment, the bloom, current, intake and guide path appear in the simulation's own site
+frame, and the map crossfades into the Three.js view. The final map frame and the 3D camera are
+solved to match exactly (top-down pose derived from the map scale, heading and the canvas
+rectangle), then the camera swings into the normal perspective view.
+
+- **Geography is real; the site is schematic.** Coastlines, islands, roads and place names come
+  from Natural Earth and OpenStreetMap. The reference site sits on a natural stretch of beach
+  south-west of Jebel Dhanna, kept clear of the Shuweihat and Ruwais facilities, and the geography
+  fades into the schematic frame before the zoom reaches facility scale. The intake, curtain and
+  transfer route are the `src/config/site.ts` geometry — not ENEC/Barakah or any other real plant.
+- **Names are never translated by us.** English and Arabic labels are read from source tags
+  (`name:en` / `name:ar`, Natural Earth `NAME_EN` / `NAME_AR`; "Arabian Gulf" is Natural Earth's
+  `namealt`). Each label carries its source in the generated data.
+- **Simulated current · alongshore.** On this north-facing coast the simulation's +x axis (the
+  nominal current) points along the shore toward the WSW, so the intro labels it *alongshore*
+  rather than with a compass point. `site.ts` documents +x as 112° and offshore as 022°, which
+  cannot both hold for the rendered scene (one of them is mirrored).
+- **Loading:** the simulation pre-rolls while the map plays (in shorter chunks so the animation
+  stays smooth). If it is not ready when the map reaches the site, the intro holds there with
+  "Initialising digital twin · NN%"; the large loading card is only used when the intro is off.
+- **Reduced motion:** with `prefers-reduced-motion: reduce`, the reference-site frame is shown
+  without zooming and fades straight into the simulation.
+- Landscape screens are the target for now.
+
+The map data is generated at build time, never fetched at runtime:
+
+```bash
+npm run build:map-intro              # uses downloads cached in .cache/map-intro/
+npm run build:map-intro -- --refresh # re-download Natural Earth and OpenStreetMap (Overpass)
+```
+
+This writes `src/data/mapIntro.generated.ts` (~135 KB): a local equirectangular projection centred
+on the site, clipped and simplified separately for the national, regional, local and destination
+levels. Map data © OpenStreetMap contributors (ODbL) · Natural Earth (public domain); the
+attribution stays on screen while geographic data is visible.
+
+In `npm run dev`, `await __mapIntroAt(2500)` renders exactly that frame (in ms) and stops,
+`await __mapIntroPlay(0)` replays the intro including the hand-off, and `__mapIntroSkip()` skips.
+`await __sl.page('name')` captures the intro composited over the 3D view.
 
 ### Suggested 2-minute demo
 
@@ -136,6 +183,11 @@ src/
     cameras/              Camera presets and smooth transitions
     assets/               GLB loader + procedural fallbacks (jellyfish, rocks, workboat)
   components/, pages/     React UI (Tailwind CSS v4, lucide-react, Recharts)
+  components/intro/       Opening intro: MapIntro (scaffolding), IntroPlayer (rAF loop, hold, skip, hand-off),
+                          introTimeline (keyframes and timed values), mapCamera, mapLabels, introStory, handoff
+  data/                   mapIntro.generated.ts (from scripts/build-map-intro-data.ts) and its types
+scripts/
+  build-map-intro-data.ts Downloads, projects, clips and simplifies the intro's map data (map-intro/ helpers)
 ```
 
 The simulation runs outside React: one `requestAnimationFrame` loop advances the engines with a
@@ -225,6 +277,7 @@ layout restarts the run and redeploys on the new pre-engineered anchors.
 npm run calibrate -- minutes=40 skirtDepth=2.5   # headless Baseline vs SweepLine metrics for any parameters
 npm run test:scenario -- safeopen 9             # headless event log for a scenario (id, minutes)
 npm run test:lifecycle                           # SafeOpen → stow → redeploy → anchor change
+npm run build:map-intro                          # regenerate the opening intro's map data
 ```
 
 In `npm run dev`, `window.__sl` exposes the controller and scene; `await __sl.shot('name')` and

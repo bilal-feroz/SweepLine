@@ -42,6 +42,8 @@ interface AppState {
   historyVersion: number;
   ui: UIState;
   toast: Toast | null;
+  /** The geographic opening sequence is on screen (it owns start-up loading feedback). */
+  intro: boolean;
   setUI: (partial: Partial<UIState>) => void;
   setCamera: (camera: CameraPreset) => void;
   showToast: (message: string, tone?: Toast['tone']) => void;
@@ -76,6 +78,12 @@ function initialPage(): Page {
   return pageFromHash(window.location.hash) ?? 'live';
 }
 
+/** The intro opens the Live Simulation (it hands off into the 3D view); `?intro=0` turns it off. */
+function playIntro(): boolean {
+  if (typeof window === 'undefined') return false;
+  return initialPage() === 'live' && new URLSearchParams(window.location.search).get('intro') !== '0';
+}
+
 export const useApp = create<AppState>((set) => ({
   snap: null,
   loading: { active: true, progress: 0, label: 'Initialising digital twin' },
@@ -95,6 +103,7 @@ export const useApp = create<AppState>((set) => ({
     cameraHeading: 0,
   },
   toast: null,
+  intro: playIntro(),
   setUI: (partial) => set((s) => ({ ui: { ...s.ui, ...partial } })),
   setCamera: (camera) => set((s) => ({ ui: { ...s.ui, camera, cameraNonce: s.ui.cameraNonce + 1 } })),
   showToast: (message, tone = 'info') => set({ toast: { id: toastId++, message, tone } }),

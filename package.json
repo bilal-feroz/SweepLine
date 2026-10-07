@@ -9,6 +9,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --pretty",
+    "build:map-intro": "tsx scripts/build-map-intro-data.ts",
     "calibrate": "tsx scripts/calibrate.ts",
     "test:scenario": "tsx scripts/scenario-test.ts",
     "test:lifecycle": "tsx scripts/lifecycle-test.ts"

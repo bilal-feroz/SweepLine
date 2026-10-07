@@ -169,6 +169,8 @@ export class SimController {
   speed = 5;
   paused = false;
   ready = false;
+  /** Main-thread budget per pre-roll chunk (ms); lowered while an animation must stay smooth. */
+  preRollSliceMs = 24;
   scenario: Scenario | null = null;
   failures = noFailures();
   events: SimEvent[] = [];
@@ -268,7 +270,7 @@ export class SimController {
       while (this.sweepline.time < target) {
         if (token !== this.runToken) return;
         const t0 = performance.now();
-        while (this.sweepline.time < target && performance.now() - t0 < 24) this.stepAll(h);
+        while (this.sweepline.time < target && performance.now() - t0 < this.preRollSliceMs) this.stepAll(h);
         this.loadingPublisher?.({
           active: true,
           progress: Math.min(1, this.sweepline.time / target),
