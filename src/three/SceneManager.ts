@@ -92,6 +92,8 @@ export class SceneManager {
   private boatYaw = 0;
   private readonly tmpV = new THREE.Vector3();
   readonly assets = new AssetLoader();
+  /** Skip drawing (simulation visuals still update) — set while an opaque overlay covers the view. */
+  renderSuspended = false;
 
   constructor(ctrl: SimController) {
     this.ctrl = ctrl;
@@ -598,7 +600,7 @@ export class SceneManager {
     this.annotations.setSelection(selPos, this.camera);
 
     this.rig.update(dt);
-    if (!this.slot) return;
+    if (!this.slot || this.renderSuspended) return;
 
     // Static shadow map: refresh for the first few frames (and after asset swaps).
     if (this.shadowFrames < 3) {

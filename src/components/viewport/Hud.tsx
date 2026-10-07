@@ -368,10 +368,11 @@ export function ViewportFooter() {
   );
 }
 
-/** Pre-roll / initialisation overlay. */
+/** Pre-roll / initialisation overlay (the opening intro shows its own progress instead). */
 export function LoadingOverlay() {
   const loading = useApp((s) => s.loading);
-  if (!loading.active) return null;
+  const intro = useApp((s) => s.intro);
+  if (!loading.active || intro) return null;
   return (
     <div className="absolute inset-0 z-40 flex items-center justify-center bg-base/70 backdrop-blur-sm">
       <div className="glass w-[380px] px-5 py-4">

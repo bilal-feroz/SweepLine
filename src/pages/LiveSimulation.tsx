@@ -11,7 +11,7 @@ export function LiveSimulation() {
   return (
     <div className="flex min-w-0 flex-1 p-3">
       <ViewportSlot className="min-h-[360px] flex-1 rounded-[16px] border border-line">
-        <div className="pointer-events-none absolute inset-0 z-10">
+        <div data-live-hud className="pointer-events-none absolute inset-0 z-10">
           <div className="absolute top-4 left-4 flex flex-col items-start gap-3">
             <LiveHeadline />
             <SafeOpenPanel />

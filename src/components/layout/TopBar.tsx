@@ -73,7 +73,7 @@ export function TopBar() {
   const speed = useApp((s) => s.snap?.speed ?? 5);
   return (
     <header className="relative z-30 flex h-[60px] shrink-0 items-center gap-6 border-b border-line bg-[#060f17] px-5">
-      <div className="flex shrink-0 items-center gap-2.5">
+      <div data-topbar-brand className="flex shrink-0 items-center gap-2.5">
         <LogoMark size={30} />
         <span className="text-[18px] font-bold tracking-tight text-white">SweepLine</span>
         <span className="pill !h-[22px] !px-2 !text-[10px]" data-tone="muted">

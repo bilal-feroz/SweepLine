@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
+import { MapIntro } from '../components/intro/MapIntro';
 import { TopBar } from '../components/layout/TopBar';
 import { Toast } from '../components/layout/Toast';
 import { LoadingOverlay } from '../components/viewport/Hud';
@@ -35,6 +36,7 @@ function useHashRoute() {
 
 export function App() {
   const page = useHashRoute();
+  const intro = useApp((s) => s.intro);
   return (
     <div className="flex h-full w-full min-w-[1100px] flex-col bg-base">
       <TopBar />
@@ -43,6 +45,7 @@ export function App() {
       </main>
       <LoadingOverlay />
       <Toast />
+      {intro && <MapIntro />}
     </div>
   );
 }
