@@ -3,7 +3,7 @@ import type { LoadingState, SimSnapshot } from '../simulation/SimController';
 import type { EngineKind } from '../simulation/types';
 import type { CameraPreset } from '../three/cameras/CameraRig';
 
-export type Page = 'overview' | 'visualiser' | 'scenarios' | 'performance' | 'environment' | 'system' | 'validation' | 'cost';
+export type Page = 'live' | 'how' | 'evidence';
 
 export type SelectionKind = 'curtain' | 'throat' | 'transfer' | 'intake' | 'bloom' | 'release' | 'jelly';
 
@@ -34,7 +34,6 @@ export interface UIState {
   underwater: boolean;
   cameraDepth: number;
   cameraHeading: number;
-  sidebarCollapsed: boolean;
 }
 
 interface AppState {
@@ -50,13 +49,31 @@ interface AppState {
 
 let toastId = 1;
 
-const PAGES: Page[] = ['overview', 'visualiser', 'scenarios', 'performance', 'environment', 'system', 'validation', 'cost'];
+export const PAGES: Page[] = ['live', 'how', 'evidence'];
+
+/** Older page links map onto the three pages. */
+const LEGACY: Record<string, Page> = {
+  overview: 'live',
+  visualiser: 'live',
+  scenarios: 'live',
+  system: 'how',
+  environment: 'how',
+  performance: 'evidence',
+  validation: 'evidence',
+  cost: 'evidence',
+};
+
+/** Page for a URL hash (null when it names no page). */
+export function pageFromHash(hash: string): Page | null {
+  const h = hash.replace(/^#\/?/, '');
+  if ((PAGES as string[]).includes(h)) return h as Page;
+  return LEGACY[h] ?? null;
+}
 
 /** Initial page from the URL hash so deep links and refreshes land on the right page. */
 function initialPage(): Page {
-  if (typeof window === 'undefined') return 'overview';
-  const h = window.location.hash.replace(/^#\/?/, '') as Page;
-  return PAGES.includes(h) ? h : 'overview';
+  if (typeof window === 'undefined') return 'live';
+  return pageFromHash(window.location.hash) ?? 'live';
 }
 
 export const useApp = create<AppState>((set) => ({
@@ -76,7 +93,6 @@ export const useApp = create<AppState>((set) => ({
     underwater: false,
     cameraDepth: 0,
     cameraHeading: 0,
-    sidebarCollapsed: false,
   },
   toast: null,
   setUI: (partial) => set((s) => ({ ui: { ...s.ui, ...partial } })),

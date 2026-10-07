@@ -1,30 +1,17 @@
 import { useEffect, type ReactNode } from 'react';
-import { Sidebar } from '../components/layout/Sidebar';
 import { TopBar } from '../components/layout/TopBar';
 import { Toast } from '../components/layout/Toast';
 import { LoadingOverlay } from '../components/viewport/Hud';
-import { CostAnalysis } from '../pages/CostAnalysis';
-import { Environment } from '../pages/Environment';
-import { Overview } from '../pages/Overview';
-import { Performance } from '../pages/Performance';
-import { Scenarios } from '../pages/Scenarios';
-import { SystemDesign } from '../pages/SystemDesign';
-import { Validation } from '../pages/Validation';
-import { Visualiser } from '../pages/Visualiser';
-import { useApp, type Page } from './store';
+import { Evidence } from '../pages/Evidence';
+import { HowItWorks } from '../pages/HowItWorks';
+import { LiveSimulation } from '../pages/LiveSimulation';
+import { pageFromHash, useApp, type Page } from './store';
 
 const PAGES: Record<Page, () => ReactNode> = {
-  overview: () => <Overview />,
-  visualiser: () => <Visualiser />,
-  scenarios: () => <Scenarios />,
-  performance: () => <Performance />,
-  environment: () => <Environment />,
-  system: () => <SystemDesign />,
-  validation: () => <Validation />,
-  cost: () => <CostAnalysis />,
+  live: () => <LiveSimulation />,
+  how: () => <HowItWorks />,
+  evidence: () => <Evidence />,
 };
-
-const isPage = (p: string): p is Page => p in PAGES;
 
 /** Hash routing keeps pages linkable and refresh-safe without a router dependency. */
 function useHashRoute() {
@@ -32,8 +19,8 @@ function useHashRoute() {
   const setUI = useApp((s) => s.setUI);
   useEffect(() => {
     const read = () => {
-      const h = window.location.hash.replace(/^#\/?/, '');
-      if (isPage(h)) setUI({ page: h });
+      const p = pageFromHash(window.location.hash);
+      if (p) setUI({ page: p });
     };
     read();
     window.addEventListener('hashchange', read);
@@ -51,12 +38,9 @@ export function App() {
   return (
     <div className="flex h-full w-full min-w-[1100px] flex-col bg-base">
       <TopBar />
-      <div className="flex min-h-0 flex-1">
-        <Sidebar />
-        <main key={page} className="flex min-w-0 flex-1 animate-fade-in overflow-hidden">
-          {PAGES[page]()}
-        </main>
-      </div>
+      <main key={page} className="flex min-h-0 min-w-0 flex-1 animate-fade-in overflow-hidden">
+        {PAGES[page]()}
+      </main>
       <LoadingOverlay />
       <Toast />
     </div>

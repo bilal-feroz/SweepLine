@@ -50,7 +50,7 @@ export function EnvelopeBadge({ compact, short }: { compact?: boolean; short?: b
   return (
     <button
       type="button"
-      onClick={() => setUI({ page: 'environment' })}
+      onClick={() => setUI({ page: 'how' })}
       className={cn(
         'flex shrink-0 items-center gap-2 rounded-xl border font-medium whitespace-nowrap transition-colors',
         short ? 'h-[30px] px-2.5 text-[12px]' : compact ? 'h-[34px] px-3 text-[13px]' : 'h-[40px] px-3 text-[13px]',
@@ -58,7 +58,7 @@ export function EnvelopeBadge({ compact, short }: { compact?: boolean; short?: b
         tone === 'amber' && 'border-amber/40 bg-amber/[0.08] text-amber hover:bg-amber/[0.13]',
         tone === 'red' && 'border-red/45 bg-red/[0.09] text-red hover:bg-red/[0.14]',
       )}
-      title={`${env.satisfied}/${env.total} assumed envelope constraints satisfied — open the operating envelope`}
+      title={`${env.satisfied}/${env.total} assumed envelope constraints satisfied — see the operating envelope under How It Works`}
     >
       {ok ? <ShieldCheck size={short ? 14 : 16} /> : <ShieldAlert size={short ? 14 : 16} />}
       {short
