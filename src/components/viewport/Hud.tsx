@@ -293,7 +293,7 @@ export function UnderwaterHud() {
   return (
     <>
       <div className="sl-vignette" />
-      <div className="pointer-events-none absolute bottom-14 left-4 flex flex-col gap-2">
+      <div className="pointer-events-none absolute bottom-[74px] left-4 flex flex-col gap-2">
         <div data-hud className="glass px-3 py-2">
           <div className="flex items-center gap-2 text-[10.5px] font-semibold tracking-[0.14em] text-cyan">
             <Crosshair size={12} /> UNDERWATER · {depth.toFixed(1)} m

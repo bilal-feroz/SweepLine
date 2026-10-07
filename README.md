@@ -62,35 +62,22 @@ demo time, fonts included).
 
 ## What's in the application
 
+Three pages:
+
 | Page | Purpose |
 | --- | --- |
-| **Overview** | AquaTwin-style operations view: live 3D twin, anchored labels, performance rail, timeline, key metrics, live camera views |
-| **3D Visualiser** | Full camera set, Flow View, **Compare** (split Baseline vs SweepLine), failure injection, SafeOpen operations, operating envelope, event log |
-| **Scenarios** | Normal Bloom, Extreme Bloom, Deep Bloom, High Current, High Waves, Transfer Failure, SafeOpen Demonstration — each with *Load Scenario* and *Run* |
-| **Performance** | Baseline vs SweepLine charts and table view (same seed), CSV / JSON export |
-| **Environment** | Site inputs, live bloom-depth distribution vs skirt, current–curtain geometry, full operating envelope |
-| **System Design** | Process chain, plan-view schematic generated from the simulation geometry, L1/L2/L3 safety architecture, upstream-first reef rule, transfer candidates |
-| **Validation** | Built / pending / future status, proposed test programme mapped to the assumptions each test calibrates, development targets (not achieved metrics) |
-| **Cost Analysis** | Editable CAPEX/OPEX quote model (AED). No prices are invented — totals are computed only from entered supplier quotations |
-
-**Export Run** (top bar or Performance page) downloads the scenario, seed, parameters, assumptions,
-envelope, metrics for both worlds, failures, timeline, event log and metric history as JSON; the
-metric history is also available as CSV.
+| **01 Live Simulation** | The 3D twin fills the screen. A headline states the situation (e.g. *Dense bloom approaching*), SweepLine's response (*SweepLine deployed · water jets on*) and the result: diverted, fewer intake contacts, under-skirt escape. Compact timeline, envelope status, **Stress test** (faults, operator SafeOpen, jets on/off, pop-up vs workboat), event log on demand. SafeOpen steps appear only while SafeOpen runs. Scenarios are picked from the top bar. |
+| **02 How It Works** | *Don't stop the bloom. Give it another path.* Deploy → Sweep → Recover → Release, the plan view, the current/angle diagram and the three-layer safety story. Engineering detail (side section, specification, operating envelope) sits behind **Technical details**. |
+| **03 Evidence** | Same-seed result (fewer intake contacts), diversion efficiency and under-skirt escape, one with/without chart, validation status (built / next) and the run-data export (JSON / CSV). Simulation estimates — not field-validated. |
 
 ### Suggested 2-minute demo
 
-1. **Compare** — 3D Visualiser → split icon. Left: no SweepLine, the bloom reaches the screens and
-   contact rises. Right: same seed, same bloom — it bends along the curtain into the throat, transfer
-   runs and the release plume carries animals away. Metrics diverge live.
-2. **Underwater** — camera *Underwater*. Watch jellyfish travel along the skirt; deep ones pass
-   beneath (red flash, *UNDER-SKIRT ESCAPE +1*). Raise **Skirt Depth** — the winches lower the skirt
-   and the next deep jellyfish is intercepted. (Scenario *Deep Bloom* makes this obvious.)
-3. **Failure test** — *Inject transfer failure*: primary turns red, standby activates. *Fail standby
-   transfer too*: **SAFEOPEN INITIATED** — the upstream end reefs first, existing curtain traffic
-   clears through the throat, the rest reefs progressively and the site returns to existing intake
-   protection.
-4. **Envelope** — push Current Speed or Wave Height past the limit (or run *High Current*):
-   **OUTSIDE VALIDATED OPERATING ENVELOPE — DEPLOYMENT NOT RECOMMENDED**.
+1. **Live Simulation** — read the headline, then watch the bloom bend along the curtain into the throat.
+2. **Stress test → Transfer failure**, then *Fail the standby path too*: SafeOpen retracts the
+   upstream end first and the steps appear on screen. Re-arm when it completes.
+3. **Scenario → Slack Tide** — the current dies away; switch *Water jets* off in Stress test to see a
+   passive curtain stall. **Scenario → Workboat Deployment** shows the late-deployment leak.
+4. **How It Works**, then **Evidence** for the same-seed numbers and what still needs testing.
 
 ---
 

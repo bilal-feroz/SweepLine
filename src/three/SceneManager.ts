@@ -351,9 +351,6 @@ export class SceneManager {
     this.snap = s;
     const sw = s.sweepline;
     const b = s.baseline;
-    const density = s.params.bloomDensity;
-    const densityLabel = density >= 0.85 ? 'Very high density' : density >= 0.65 ? 'High density' : density >= 0.4 ? 'Moderate density' : 'Low density';
-    this.labels.setContent('bloom', 'Jellyfish Bloom', `${densityLabel} · P90 ${s.bloom.p90.toFixed(1)} m`, density >= 0.65 ? 'red' : 'amber');
     const mode = s.curtain.mode;
     const cs = s.curtain;
     const jets = s.params.activeFlow && cs.jetOutput > 0.01 ? `jets ${Math.round(cs.jetOutput * 100)}%` : 'passive';
@@ -377,21 +374,12 @@ export class SceneManager {
       s.transfer.path === 'NONE' && mode === 'STOWED' ? 'Standby' : `Occupancy ${(Math.min(occ, 1.5) * 100).toFixed(0)}%`,
       occ >= 0.85 ? 'red' : occ >= 0.6 ? 'amber' : 'teal',
     );
-    const util = sw.transferUtilisation;
-    const path = s.transfer.path === 'STANDBY' ? 'standby path' : s.transfer.path === 'PASSIVE' ? 'passive line only' : s.transfer.path === 'NONE' ? 'idle' : 'primary';
-    this.labels.setContent(
-      'transfer',
-      'Transfer Module',
-      util === null ? 'Low-shear · idle' : `${(Math.min(util, 1) * 100).toFixed(0)}% utilisation · ${path}`,
-      s.transfer.primary === 'FAULT' ? (s.transfer.standby === 'ONLINE' ? 'amber' : 'red') : 'default',
-    );
     const intakeBody = (m: typeof b) =>
       m.intakeContactPct === null ? 'Existing protection remains' : `Contact ${(m.intakeContactPct * 100).toFixed(0)}% · load ${m.screenLoad}`;
     this.labels.setContent('intake', 'Intake Screens', 'Existing protection remains', 'default');
     this.labels.setContent('intake-base', 'Intake Screens', intakeBody(b), b.screenLoad === 'HIGH' ? 'red' : b.screenLoad === 'MEDIUM' ? 'amber' : 'default');
     this.labels.setContent('intake-left', 'Intake Screens', intakeBody(b), b.screenLoad === 'HIGH' ? 'red' : 'amber');
     this.labels.setContent('intake-right', 'Intake Screens', intakeBody(sw), sw.screenLoad === 'HIGH' ? 'red' : sw.screenLoad === 'MEDIUM' ? 'amber' : 'teal');
-    this.labels.setContent('release', 'Safe Release', `Down-current · ${s.params.releaseDistance} m line`, 'default');
     this.labels.setContent('skirt-dim', 'Skirt depth', `${s.curtain.skirtActual.toFixed(1)} m`, 'cyan');
     this.labels.setContent('bloom-p90', 'Bloom P90 depth', `${s.bloom.p90.toFixed(1)} m`, s.bloom.p90 > s.curtain.skirtActual ? 'amber' : 'teal');
   }
@@ -399,16 +387,6 @@ export class SceneManager {
   private setupLabels(): void {
     const above = 'above' as const;
     const layout = () => this.ctrl.sweepline.curtain!.layout;
-    this.labels.add({
-      id: 'bloom',
-      title: 'Jellyfish Bloom',
-      icon: iconSvg('jellyfish', 22),
-      anchor: () => (this.bloomAnchorValid ? this.bloomAnchor : null),
-      viewports: ['single', 'base'],
-      view: above,
-      pick: 'bloom',
-      maxDistance: 900,
-    });
     this.labels.add({
       id: 'curtain',
       title: 'Guide Curtain',
@@ -430,17 +408,6 @@ export class SceneManager {
       view: above,
       pick: 'throat',
     });
-    this.labels.add({
-      id: 'transfer',
-      title: 'Transfer Module',
-      icon: iconSvg('transfer', 22),
-      pages: ['visualiser', 'system'],
-      anchor: () => this.transfer.anchors().transferLow,
-      viewports: ['single'],
-      view: above,
-      pick: 'transfer',
-      maxDistance: 600,
-    });
     const intakeAnchor = new THREE.Vector3((SITE.intake.x0 + SITE.intake.x1) / 2 + 8, SITE.intake.deckY + 0.4, SITE.intake.mouthZ + 0.6);
     for (const [id, vp] of [
       ['intake', ['single']],
@@ -452,23 +419,12 @@ export class SceneManager {
         id,
         title: 'Intake Screens',
         icon: iconSvg('intake', 22),
-        pages: id === 'intake' ? ['visualiser', 'system'] : undefined,
         anchor: () => intakeAnchor,
         viewports: [...vp] as LabelViewport[],
         view: above,
         pick: 'intake',
       });
     }
-    this.labels.add({
-      id: 'release',
-      title: 'Safe Release',
-      icon: iconSvg('release', 22),
-      anchor: () => this.release.anchor(),
-      viewports: ['single'],
-      view: above,
-      pick: 'release',
-      maxDistance: 900,
-    });
     this.labels.add({
       id: 'skirt-dim',
       title: 'Skirt depth',
@@ -674,7 +630,8 @@ export class SceneManager {
       r.setScissorTest(false);
     } else {
       const w = this.ui.displayed;
-      this.labels.setCompact(this.width < 760);
+      // Compact, title-only labels keep the scene uncluttered.
+      this.labels.setCompact(true);
       this.camera.aspect = this.width / this.height;
       this.camera.updateProjectionMatrix();
       this.setWorld(w);
