@@ -2,6 +2,7 @@ import { ASSUMPTIONS } from '../config/assumptions';
 import { OPERATING_ENVELOPE } from '../config/operatingEnvelope';
 import { S_APPROACHING, S_GUIDED, S_TRANSFER_QUEUE } from './Agent';
 import { computeEngineMetrics, type EngineMetrics } from './metrics';
+import { bloomP90 } from './curtain';
 import { evaluateEnvelope, SafeOpenController, type EnvelopeResult } from './safety';
 import { getScenario, type Scenario, type ScenarioStep } from './scenarios';
 import { SimulationEngine, type AgentInfo } from './SimulationEngine';
@@ -222,6 +223,8 @@ export class SimController {
   private runToken = 0;
   /** Set when the operator stows the curtain: suppresses auto-deployment until they deploy again. */
   private standDown = false;
+  /** Skirt depth the winches are holding below the operator setpoint for a deep bloom (0 = none). */
+  private adaptiveSkirt = 0;
 
   constructor() {
     this.baseline = new SimulationEngine('baseline', this.params);
@@ -250,6 +253,8 @@ export class SimController {
     const token = ++this.runToken;
     this.ready = false;
     this.scenario = scenario;
+    // Stress-test conditions belong to the run they were injected into.
+    this.params = { ...this.params, ...this.savedParams };
     this.failures = noFailures();
     this.savedParams = {};
     this.events = [];
@@ -271,6 +276,7 @@ export class SimController {
     this.prevCurtainMode = 'STOWED';
     this.selection = null;
     this.standDown = false;
+    this.adaptiveSkirt = 0;
     this.baseline.reset(this.params, 'approach');
     this.sweepline.reset(this.params, 'approach');
     this.timeline[0].at = 0;
@@ -309,6 +315,7 @@ export class SimController {
     const sc = getScenario(id);
     if (!sc) return;
     this.params = { ...DEFAULT_PARAMS, seed: this.params.seed, agentBudget: this.params.agentBudget, releaseDistance: this.params.releaseDistance, ...sc.params };
+    this.savedParams = {};
     await this.restart(sc.start, sc);
   }
 
@@ -421,7 +428,7 @@ export class SimController {
     if (this.params.deployMode === 'popup') {
       this.log(
         'info',
-        `Pop-up deployment started — ${this.params.anchorAngle}° anchor layout, ${c.length.toFixed(0)} m curtain, skirt ${this.params.skirtDepth.toFixed(1)} m (no vessel needed)`,
+        `Pop-up deployment started — ${this.params.anchorAngle}° anchor layout, ${c.length.toFixed(0)} m curtain, skirt ${c.skirtTarget.toFixed(1)} m (no vessel needed)`,
       );
     } else {
       this.log('info', `Workboat deployment requested — crew and vessel mobilising (~${Math.round(ASSUMPTIONS.deploy.workboatMobilisation / 60)} min, assumption)`);
@@ -523,16 +530,19 @@ export class SimController {
         this.setParams({ currentSpeed: 0.78 }, { silent: true });
         break;
       case 'deepBloom':
+        // Below the skirt but within its adjustable range: the adaptive skirt follows it down.
         this.savedParams.bloomMeanDepth ??= this.params.bloomMeanDepth;
         this.savedParams.bloomDepthSD ??= this.params.bloomDepthSD;
-        this.setParams({ bloomMeanDepth: 3.6, bloomDepthSD: 0.5 }, { silent: true });
+        this.setParams({ bloomMeanDepth: 3.2, bloomDepthSD: 0.5 }, { silent: true });
         break;
       case 'highDensity': {
         this.savedParams.bloomDensity ??= this.params.bloomDensity;
         this.setParams({ bloomDensity: 1.0 }, { silent: true });
+        // Both worlds receive the same surge, placed just upstream of the (SweepLine) curtain.
         const surge = Math.round(this.params.agentBudget * 0.25);
-        this.baseline.spawnSurge(surge);
-        this.sweepline.spawnSurge(surge);
+        const edge = this.sweepline.surgeEdge();
+        this.baseline.spawnSurge(surge, edge);
+        this.sweepline.spawnSurge(surge, edge);
         break;
       }
       case 'curtainOverload':
@@ -548,7 +558,7 @@ export class SimController {
       transferPrimary: ['info', 'Failure injected — primary transfer module'],
       transferStandby: ['info', 'Failure injected — standby transfer module'],
       extremeCurrent: ['warn', 'Stress test: extreme current 0.78 m/s'],
-      deepBloom: ['warn', 'Stress test: deep bloom — mean depth 3.6 m'],
+      deepBloom: ['warn', 'Stress test: deep bloom — mean depth 3.2 m'],
       highDensity: ['warn', 'Stress test: bloom surge — density 100%'],
       curtainOverload: ['warn', 'Stress test: curtain overload — debris and bio-fouling accumulation'],
       highWaves: ['warn', 'Stress test: high wave state — Hs 1.9 m'],
@@ -753,6 +763,16 @@ export class SimController {
     const deployed = c.mode === 'DEPLOYING' || c.mode === 'DEPLOYED' || c.mode === 'UNREEFING';
     const env = evaluateEnvelope(this.params, s, m, deployed || this.safeOpen.active, this.safeOpen.active, this.safeOpen.complete);
     this.envelope = env;
+
+    // Adaptive skirt: report when the winches follow a deep bloom down, and when they return.
+    const setpoint = Math.min(this.params.skirtDepth, c.clearanceLimitedMax);
+    const adaptive = c.skirtTarget > setpoint + 0.05 ? c.skirtTarget : 0;
+    if (adaptive !== this.adaptiveSkirt) {
+      if (adaptive > 0)
+        this.log('warn', `Deep bloom — P90 ${bloomP90(this.params).toFixed(1)} m is below the ${setpoint.toFixed(1)} m skirt: lowering the skirt to ${adaptive.toFixed(1)} m`);
+      else this.log('ok', `Bloom back above the skirt — returning to the ${setpoint.toFixed(1)} m setpoint`);
+      this.adaptiveSkirt = adaptive;
+    }
 
     // Auto-deployment after the early warning, only inside the envelope.
     if (c.mode === 'STOWED' && this.warningAt !== null && s.bloomActive && this.params.autoDeploy && !this.safeOpen.complete && !this.standDown) {

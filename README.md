@@ -103,9 +103,14 @@ rectangle), then the camera swings into the normal perspective view.
   between map levels.
 - **Run start:** the run opens on the bloom approach and waits, paused, until the map gives way to
   the 3D view, so the early warning and the pop-up deployment play out on screen. With an automatic
-  pop-up deployment the bloom starts close in: its leading edge follows the curtain line, set back
-  from each section by the drift until that section has surfaced, so the bloom meets the curtain
-  soon after it is up (`ASSUMPTIONS.bloom.popUpFrontMargin`). **Replay** starts the same way.
+  pop-up deployment the bloom starts in view, just upstream of the curtain's upstream anchor: its
+  leading edge is set back from every section by the drift (slower near the revetment) until that
+  section has surfaced, so the curtain is up before the bloom reaches it
+  (`ASSUMPTIONS.bloom.popUpFrontMargin`). Ahead of it, a few stragglers in the inshore lanes reach
+  the curtain's starting end while it is still rising and slip past — the leak a pop-up deployment
+  still allows (`ASSUMPTIONS.bloom.leadingScatter`); later the odd deep jellyfish passes under the
+  skirt. **Replay** starts the same way. The **Perspective** view keeps that start, the curtain, the
+  throat and the intake in frame on any landscape screen.
 - **Loading:** the 3D view's shaders compile in the background while the map plays
   (`KHR_parallel_shader_compile`). Its first frame still stalls briefly, so it is drawn behind a
   still map — while the opening caption holds, if compilation has finished by then, otherwise on
@@ -139,8 +144,22 @@ In `npm run dev`, `await __mapIntroAt(2500)` renders exactly that frame (in ms) 
 2. **Stress test → Transfer failure**, then *Fail the standby path too*: SafeOpen retracts the
    upstream end first and the steps appear on screen. Re-arm when it completes.
 3. **Scenario → Slack Tide** — the current dies away; switch *Water jets* off in Stress test to see a
-   passive curtain stall. **Scenario → Workboat Deployment** shows the late-deployment leak.
+   passive curtain stall. **Scenario → Workboat Deployment** (or *Deployment → Workboat* in Stress
+   test, which replays the run) shows the late-deployment leak.
 4. **How It Works**, then **Evidence** for the same-seed numbers and what still needs testing.
+
+**Stress test** — each option injects a condition and the system responds on its own:
+
+| Option | Response |
+| --- | --- |
+| Transfer failure | The standby transfer path takes over within seconds (*Fail the standby path too* → SafeOpen) |
+| Extreme current 0.78 m/s | Outside the 0.60 m/s limit: SafeOpen retracts the curtain, upstream end first |
+| Deep bloom (mean 3.2 m) | The adaptive skirt lowers to cover the bloom's P90 depth, within the seabed clearance |
+| High density | A dense surge reaches the curtain; if the recovery throat overfills, SafeOpen |
+| Curtain overload | Fouling builds up on the curtain until its load limit triggers SafeOpen |
+| High waves Hs 1.9 m | The sea builds past the 1.5 m limit: SafeOpen |
+
+Injected conditions belong to the run: **Replay** starts clean.
 
 ---
 
@@ -176,10 +195,14 @@ The 3D view renders in linear HDR into a 4× MSAA buffer and finishes in post-pr
 (`src/three/post/PostPipeline.ts`, [pmndrs/postprocessing](https://github.com/pmndrs/postprocessing)):
 
 ```
-scene → ambient occlusion → above water: tilt-shift · bloom · grade · LUT · vignette
-                          → underwater:  light shafts + wobble → depth of field · bloom · grade · LUT · vignette
-                          → SMAA → canvas
+scene → ambient occlusion → sanitize → above water: tilt-shift · bloom · grade · LUT · vignette
+                                     → underwater:  light shafts + wobble → depth of field · bloom · grade · LUT · vignette
+                                     → SMAA → canvas
 ```
+
+- **Sanitize.** A NaN or infinite pixel from any material would be smeared over the frame by the
+  blur and bloom passes as a black flash; `SanitizeEffect` drops it and caps the HDR range first.
+  Shaders also keep `pow()` bases non-negative (a negative base is NaN on Direct3D).
 
 - **Grade.** `GradeEffect` is the same ACES filmic curve + vibrance lift the scene always used
   (`environment/grade.ts`); a small generated LUT (`post/lookLut.ts`) adds a gentle S-curve with

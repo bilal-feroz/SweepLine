@@ -9,7 +9,7 @@ import { getScene } from '../../app/runtime';
 import { useApp } from '../../app/store';
 import { SITE } from '../../config/site';
 import { controller } from '../../simulation/SimController';
-import { orbitPose, presetPose, type CameraPose } from '../../three/cameras/CameraRig';
+import { orbitPose, type CameraPose } from '../../three/cameras/CameraRig';
 import { approachingBloom } from '../../utils/format';
 import { handoffPose, type ScreenRect } from './handoff';
 import { bloomDots, buildSchematic, currentStreaks, shoreline, SiteFrame, subPath, type Polyline, type Schematic } from './introStory';
@@ -337,14 +337,16 @@ export class IntroPlayer {
     if (sm.attached) sm.forceResize();
     this.canvas = sm.attached ? rectOf(sm.renderer.domElement) : null;
     this.slot = rectOf(sm.renderer.domElement.closest('[data-viewport]'));
-    if (this.canvas) {
-      const final = this.choreo.camera(T.site);
-      const m = cameraAffine(final, this.vp, this.site.lock[0], this.site.lock[1]);
-      this.handoff = handoffPose(m, this.site.toSvg, this.canvas, sm.camera.fov);
+    const final = this.choreo.camera(T.site);
+    const m = cameraAffine(final, this.vp, this.site.lock[0], this.site.lock[1]);
+    const pose = this.canvas ? handoffPose(m, this.site.toSvg, this.canvas, sm.camera.fov) : null;
+    // A window with no size yet (e.g. a hidden tab) gives no pose; the next resize measures again.
+    this.handoff = pose && [pose.pos, pose.target].every((v) => Number.isFinite(v.x + v.y + v.z)) ? pose : null;
+    if (this.handoff) {
       // A tall portrait canvas can need more height than the orbit limit allows.
       sm.controls.maxDistance = Math.max(this.savedMaxDistance, this.handoff.pos.y * 1.1);
       if (this.mode !== 'reduced' && (this.t >= T.render || this.t < 0.6) && this.t < T.flyStart) sm.rig.setPose(this.handoff);
-    } else this.handoff = null;
+    }
     this.placeChrome();
   }
 
@@ -601,7 +603,7 @@ export class IntroPlayer {
       }
       return;
     }
-    const aerial = presetPose('aerial', controller.sweepline.curtain!.layout);
+    const aerial = sm.rig.pose('aerial', controller.sweepline.curtain!.layout);
     if (this.mode === 'frozen') {
       const pose = orbitPose(this.handoff, aerial, flightProgress(t), { pos: this.handoff.pos.clone(), target: this.handoff.target.clone() });
       sm.rig.setPose(pose);

@@ -46,7 +46,7 @@ export function jellyShader(map: THREE.Texture | null): THREE.ShaderMaterial {
       varying float vAng;
       void main() {
         float ph = aData.x * 6.2831853 + uTime * 4.0;
-        float c = pow(0.5 + 0.5 * sin(ph), 2.0);
+        float c = pow(max(0.5 + 0.5 * sin(ph), 0.0), 2.0);
         vec3 p = position;
         if (aPart < 0.5) {
           float m = smoothstep(0.15, 1.0, aT);
@@ -113,7 +113,8 @@ export function jellyShader(map: THREE.Texture | null): THREE.ShaderMaterial {
         if (!gl_FrontFacing) N = -N;
         vec3 V = normalize(-vViewPos);
         vec3 L = normalize((viewMatrix * vec4(uSunDir, 0.0)).xyz);
-        float NdV = abs(dot(N, V));
+        // |N·V| can round a hair above 1, and pow() of a negative base is NaN on D3D.
+        float NdV = min(abs(dot(N, V)), 1.0);
         float rim = pow(1.0 - NdV, 2.2);
         float wrap = max(dot(N, L) * 0.5 + 0.5, 0.0);
         float foot = length(fwidth(vWorld.xz));

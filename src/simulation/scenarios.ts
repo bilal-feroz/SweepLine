@@ -68,10 +68,10 @@ export const SCENARIOS: Scenario[] = [
   {
     id: 'deep',
     name: 'Deep Bloom',
-    tagline: 'Bloom sits below a shallow skirt',
+    tagline: 'Bloom sits below the skirt setpoint',
     description:
-      'Most of the bloom sits deeper than the 2.5 m skirt and passes underneath. The foot jets lift animals close to the hem, but a bloom that actively holds a deeper layer needs a deeper skirt: switch to the underwater camera, then increase skirt depth to 4.0 m and watch interception recover.',
-    demonstrates: ['Under-skirt escape', 'Adjustable skirt depth with foot jets'],
+      'Most of the bloom sits deeper than the 2.5 m skirt setpoint. The winches lower the skirt automatically to 4.0 m, the most the seabed clearance allows, and the foot jets lift animals close to the hem — switch to the underwater camera to see the deepest few still slip underneath.',
+    demonstrates: ['Adaptive skirt depth', 'Under-skirt escape at the clearance limit', 'Foot jets at the hem'],
     params: { ...NORMAL, bloomDensity: 0.7, bloomMeanDepth: 3.4, bloomDepthSD: 0.45, skirtDepth: 2.5 },
     start: 'steady',
     tone: 'stress',

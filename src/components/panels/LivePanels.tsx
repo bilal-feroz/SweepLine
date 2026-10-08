@@ -58,6 +58,8 @@ function response(s: SimSnapshot): { text: string; tone: Tone } {
   if (c.mode === 'UNREEFING') return { text: 'SweepLine re-arming', tone: 'cyan' };
   if (s.transfer.primary === 'FAULT')
     return { text: s.transfer.standby === 'ONLINE' ? 'Transfer fault — standby path carrying the load' : 'Transfer fault — standby activating', tone: 'amber' };
+  // The adaptive skirt is following a deep bloom down.
+  if (c.skirtTarget > Math.min(s.params.skirtDepth, c.clearanceMax) + 0.05) return { text: `Deep bloom — skirt lowered to ${c.skirtTarget.toFixed(1)} m`, tone: 'cyan' };
   return { text: `SweepLine deployed${s.params.activeFlow && c.jetOutput > 0.01 ? ' · water jets on' : ''}`, tone: 'cyan' };
 }
 
@@ -241,13 +243,14 @@ export function SafeOpenPanel() {
 
 // ---------------------------------------------------------------- stress test
 
-const FAULTS: Array<{ key: FailureKey; title: string; sub: string; icon: ReactNode }> = [
-  { key: 'transferPrimary', title: 'Transfer failure', sub: 'Primary module fault', icon: <Zap size={15} /> },
-  { key: 'extremeCurrent', title: 'Extreme current', sub: '0.78 m/s', icon: <Wind size={15} /> },
-  { key: 'deepBloom', title: 'Deep bloom', sub: 'Mean depth 3.6 m', icon: <Icon name="jellyfish" size={15} /> },
-  { key: 'highDensity', title: 'High density', sub: 'Bloom surge', icon: <Layers size={15} /> },
-  { key: 'curtainOverload', title: 'Curtain overload', sub: 'Debris / fouling', icon: <AlertTriangle size={15} /> },
-  { key: 'highWaves', title: 'High waves', sub: 'Hs 1.9 m', icon: <Waves size={15} /> },
+/** Each fault and the response to watch for. */
+const FAULTS: Array<{ key: FailureKey; title: string; sub: string; watch: string; icon: ReactNode }> = [
+  { key: 'transferPrimary', title: 'Transfer failure', sub: 'Primary module fault', watch: 'The standby transfer path takes over within seconds', icon: <Zap size={15} /> },
+  { key: 'extremeCurrent', title: 'Extreme current', sub: '0.78 m/s', watch: 'Outside the envelope: SafeOpen retracts the curtain, upstream end first', icon: <Wind size={15} /> },
+  { key: 'deepBloom', title: 'Deep bloom', sub: 'Mean depth 3.2 m', watch: 'The skirt lowers automatically to keep intercepting the bloom', icon: <Icon name="jellyfish" size={15} /> },
+  { key: 'highDensity', title: 'High density', sub: 'Bloom surge', watch: 'A dense wave reaches the curtain; if the recovery throat overfills, SafeOpen', icon: <Layers size={15} /> },
+  { key: 'curtainOverload', title: 'Curtain overload', sub: 'Debris / fouling', watch: 'Fouling builds on the curtain until its load limit triggers SafeOpen', icon: <AlertTriangle size={15} /> },
+  { key: 'highWaves', title: 'High waves', sub: 'Hs 1.9 m', watch: 'The sea builds past the wave limit: SafeOpen retracts the curtain', icon: <Waves size={15} /> },
 ];
 
 function MenuButton({ icon, label, badge, open, onClick }: { icon: ReactNode; label: string; badge?: number; open: boolean; onClick: () => void }) {
@@ -270,6 +273,7 @@ function MenuButton({ icon, label, badge, open, onClick }: { icon: ReactNode; la
 
 export function StressTestMenu() {
   const s = useSnap();
+  const showToast = useApp((st) => st.showToast);
   const [open, setOpen] = useState(false);
   const ref = useOutsideClose(open, () => setOpen(false));
   if (!s) return null;
@@ -303,7 +307,7 @@ export function StressTestMenu() {
                     'card-inner flex items-center gap-2 px-2.5 py-1.5 text-left transition-colors',
                     on ? '!border-red/50 !bg-red/[0.1]' : 'hover:!border-cyan/30',
                   )}
-                  title={on ? 'Active — click to clear' : `Inject: ${x.title.toLowerCase()}`}
+                  title={on ? 'Active — click to clear' : `Inject: ${x.title.toLowerCase()}. ${x.watch}.`}
                 >
                   <span className={cn('flex shrink-0', on ? 'text-red' : 'text-cyan')}>{x.icon}</span>
                   <span className="min-w-0">
@@ -348,14 +352,20 @@ export function StressTestMenu() {
               <Segmented
                 size="sm"
                 value={s.params.deployMode}
-                onChange={(v) => controller.setParams({ deployMode: v })}
+                onChange={(v) => {
+                  if (v === s.params.deployMode) return;
+                  // Deployment starts from the warning, so the comparison replays the run.
+                  controller.setParams({ deployMode: v }, { silent: true });
+                  void controller.restart('sequence');
+                  showToast(v === 'popup' ? 'Replaying with the pop-up curtain' : 'Replaying with workboat deployment (~15 min mobilisation)', 'info');
+                }}
                 options={[
                   { value: 'popup', label: 'Pop-up' },
                   { value: 'workboat', label: 'Workboat' },
                 ]}
               />
             </div>
-            <p className="mt-1 text-[11px] text-dim">Deployment applies from the next run — use Replay.</p>
+            <p className="mt-1 text-[11px] text-dim">Switching replays the run from the bloom approach (same seed).</p>
           </div>
         </div>
       )}

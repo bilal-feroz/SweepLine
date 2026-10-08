@@ -30,6 +30,8 @@ import { ReleaseSystem } from './systems/ReleaseSystem';
 import { TransferSystem } from './systems/TransferSystem';
 
 const WORLDS: EngineKind[] = ['baseline', 'sweepline'];
+/** Time constant (real seconds) of the shown sea state following the simulated wave height. */
+const SEA_STATE_TAU = 1.6;
 
 /**
  * Owns the WebGL renderer and the 3D digital twin. One renderer serves both the
@@ -90,6 +92,8 @@ export class SceneManager {
   /** Skip drawing (simulation visuals still update) — set while an opaque overlay covers the view. */
   renderSuspended = false;
   private precompiling: Promise<void> | null = null;
+  /** Wave height (Hs) the scene shows, easing toward the simulated value (-1 until the first frame). */
+  private seaState = -1;
 
   constructor(ctrl: SimController) {
     this.ctrl = ctrl;
@@ -191,7 +195,10 @@ export class SceneManager {
       this.pointerDown = null;
       if (moved < 5) this.pick(e);
     });
-    this.resizeObs = new ResizeObserver(() => this.resize());
+    // Resizing clears the canvas: draw the new frame before it is painted, so no black frame shows.
+    this.resizeObs = new ResizeObserver(() => {
+      if (this.resize() && !this.renderSuspended) this.frame(0);
+    });
 
     useApp.subscribe((s, prev) => {
       if (s.ui !== prev.ui) this.onUI(s.ui, prev.ui);
@@ -307,15 +314,18 @@ export class SceneManager {
     return this.precompiling;
   }
 
-  private resize(): void {
-    if (!this.slot) return;
+  /** Match the canvas to the slot; false when its size has not changed (resizing would clear it). */
+  private resize(): boolean {
+    if (!this.slot) return false;
     const w = Math.max(1, this.slot.clientWidth);
     const h = Math.max(1, this.slot.clientHeight);
+    if (w === this.width && h === this.height) return false;
     this.width = w;
     this.height = h;
     this.renderer.setSize(w, h, false);
     this.renderer.domElement.style.width = `${w}px`;
     this.renderer.domElement.style.height = `${h}px`;
+    return true;
   }
 
   // ------------------------------------------------------------------ store sync
@@ -538,7 +548,10 @@ export class SceneManager {
     SHARED.uWaveTime.value = this.realTime;
     const ctrl = this.ctrl;
     const params = ctrl.params;
-    SHARED.uWaveAmp.value = params.waveHeight * 0.5;
+    // A changed sea state builds up (or calms) over a few seconds instead of jumping.
+    this.seaState = this.seaState < 0 ? params.waveHeight : this.seaState + (params.waveHeight - this.seaState) * (1 - Math.exp(-dt / SEA_STATE_TAU));
+    const hs = this.seaState;
+    SHARED.uWaveAmp.value = hs * 0.5;
     const simDt = ctrl.ready && !ctrl.paused ? dt * ctrl.speed : 0;
     const sw = ctrl.sweepline;
     const c = sw.curtain!;
@@ -549,8 +562,8 @@ export class SceneManager {
     this.lastMarkerSeq = sw.markerSeq;
 
     // SweepLine installation.
-    this.curtain.update(c, this.realTime, params.waveHeight, this.ui.flowView);
-    this.jets.update(c, this.realTime, simDt, params.waveHeight);
+    this.curtain.update(c, this.realTime, hs, this.ui.flowView, Math.min(1, sw.debrisLoad / 0.95));
+    this.jets.update(c, this.realTime, simDt, hs);
     this.transfer.update({
       occupancy: tr.queue.length / sw.holdCapacity,
       primary: tr.primaryStatus,
@@ -560,9 +573,9 @@ export class SceneManager {
       throatOpen: tr.throatOpen,
       time: this.realTime,
       waveTime: this.realTime,
-      waveHeight: params.waveHeight,
+      waveHeight: hs,
     });
-    this.release.update(sw.releaseEMA, tr.throatOpen || sw.releaseEMA > 0.002, this.realTime, this.realTime, params.waveHeight);
+    this.release.update(sw.releaseEMA, tr.throatOpen || sw.releaseEMA > 0.002, this.realTime, this.realTime, hs);
     this.updateWorkboat(dt);
 
     // Worlds to draw this frame.
@@ -746,7 +759,7 @@ export class SceneManager {
     while (dy > Math.PI) dy -= Math.PI * 2;
     while (dy < -Math.PI) dy += Math.PI * 2;
     this.boatYaw += dy * Math.min(1, dt * 1.2);
-    const eta = waveElevation(this.boatPos.x, this.boatPos.z, this.realTime, this.ctrl.params.waveHeight);
+    const eta = waveElevation(this.boatPos.x, this.boatPos.z, this.realTime, this.seaState);
     this.workboat.position.set(this.boatPos.x, eta - 0.25, this.boatPos.z);
     this.workboat.rotation.set(Math.sin(this.realTime * 0.9) * 0.03, this.boatYaw, Math.sin(this.realTime * 1.1) * 0.04);
   }

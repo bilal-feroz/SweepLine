@@ -2,7 +2,7 @@ import { ASSUMPTIONS } from '../config/assumptions';
 import { seabedDepth } from '../config/site';
 import { waveElevation } from './waves';
 import type { CurtainLayout } from './geometry';
-import type { CurtainMode, DeployMode } from './types';
+import type { CurtainMode, DeployMode, SimParams } from './types';
 
 const C = ASSUMPTIONS.curtain;
 const D = ASSUMPTIONS.deploy;
@@ -21,6 +21,22 @@ function floorDepths(layout: CurtainLayout): Float32Array {
 export function popUpSurfaceTime(layout: CurtainLayout, k: number): number {
   const s = layout.s0[k] + layout.len[k] * 0.5;
   return D.popUpDelay + (layout.length - s) / D.popUpSpeed + seabedDepth(layout.midX[k], layout.midZ[k]) / D.riseSpeed;
+}
+
+/** Bloom depth (m) that 90 % of the bloom is shallower than. */
+export function bloomP90(params: Pick<SimParams, 'bloomMeanDepth' | 'bloomDepthSD'>): number {
+  return params.bloomMeanDepth + 1.2816 * params.bloomDepthSD;
+}
+
+/**
+ * Skirt depth the winches hold: the operator setpoint, lowered automatically while the bloom's
+ * P90 depth is below it (see `adaptiveSkirtMargin`), never past the seabed clearance limit.
+ */
+export function skirtSetpoint(params: SimParams, maxSkirt: number): number {
+  const setpoint = Math.min(params.skirtDepth, maxSkirt);
+  const p90 = bloomP90(params);
+  if (p90 <= setpoint) return setpoint;
+  return Math.min(maxSkirt, Math.ceil((p90 + C.adaptiveSkirtMargin) * 10) / 10);
 }
 
 /** Seconds from a pop-up deployment command until every section has surfaced. */

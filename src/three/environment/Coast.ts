@@ -53,7 +53,6 @@ export function buildCoast(): CoastParts {
     concrete: mediumMaterial({ map: concreteTex.map, normalMap: concreteTex.normal, roughness: 0.88, metalness: 0, color: 0xdedbd2 }),
     concreteDark: mediumMaterial({ map: concreteTex.map, normalMap: concreteTex.normal, roughness: 0.9, color: 0x9c9890 }),
     land: mediumMaterial({ map: makeLandTexture(512), color: 0xe8d6b0, roughness: 0.97 }, false),
-    asphalt: mediumMaterial({ color: 0x4a4d50, roughness: 0.92 }, false),
     steel: mediumMaterial({ color: 0x3d4a52, roughness: 0.55, metalness: 0.55 }),
     yellow: mediumMaterial({ color: 0xe8b23a, roughness: 0.5, metalness: 0.2 }, false),
     glass: mediumMaterial({ color: 0x1a3442, roughness: 0.12, metalness: 0.75, emissive: 0x081820, emissiveIntensity: 0.6 }, false),
@@ -62,7 +61,7 @@ export function buildCoast(): CoastParts {
     rockCore: mediumMaterial({ color: 0x6f6a60, roughness: 0.98 }),
   };
 
-  // ------------------------------------------------------------ land + crown wall + road
+  // ------------------------------------------------------------ land + crown wall
   (mats.land.map as THREE.Texture).repeat.set(9000 / 90, 3000 / 90);
   const landMesh = new THREE.Mesh(new THREE.PlaneGeometry(9000, 3000).rotateX(-Math.PI / 2), mats.land);
   landMesh.position.set(0, SITE.shore.landY, SITE.shore.crestZ - 1500 - 2);
@@ -77,7 +76,6 @@ export function buildCoast(): CoastParts {
     [ix1, 4500],
   ]) {
     mb.box('concrete', a, b, SITE.shore.landY - 0.5, SITE.shore.crestY + 1.0, crest - 2.2, crest + 0.2);
-    mb.box('asphalt', a, b, SITE.shore.landY, SITE.shore.landY + 0.06, crest - 12, crest - 5);
   }
   mb.build(mats, group, true);
 
@@ -287,11 +285,9 @@ function buildPlantBackdrop(mats: Record<string, THREE.Material>): THREE.Group {
   ] as const) {
     mb.add('cladding', new THREE.CylinderGeometry(r, r, h, 28).translate(tx, y0 + h / 2, tz));
   }
-  // Pipe rack and service road.
+  // Pipe rack.
   mb.box('steel', 20, 160, y0 + 4, y0 + 4.5, -132, -130);
   for (let px = 20; px <= 160; px += 10) mb.box('steel', px, px + 0.4, y0, y0 + 4, -132, -131.6);
-  mb.box('asphalt', -400, 400, y0 + 0.02, y0 + 0.08, -84, -78);
-  mb.box('asphalt', 0, 8, y0 + 0.02, y0 + 0.08, -150, -84);
   mb.build(mats, g, true);
   return g;
 }

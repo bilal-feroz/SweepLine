@@ -199,7 +199,8 @@ export class Water {
           vec3 V = normalize(cameraPosition - vWorld);
 
           if (gl_FrontFacing) {
-            float NdV = max(dot(N, V), 0.0);
+            // N·V can round a hair above 1, and pow() of a negative base is NaN on D3D.
+            float NdV = clamp(dot(N, V), 0.0, 1.0);
             float F = 0.02 + 0.98 * pow(1.0 - NdV, 5.0);
             vec3 R = reflect(-V, N);
             R.y = abs(R.y);
@@ -293,7 +294,7 @@ export class Water {
             float sd = max(dot(I, sunU), 0.0);
             // Outside the window the underside mirrors the bright water column; ripples catch light.
             float ripple = 0.5 + 0.5 * (n1.x * 0.6 + n2.y * 0.4);
-            vec3 tir = uWaterScatter * (3.2 + 2.2 * ripple) + vec3(0.02, 0.06, 0.06) * pow(ripple, 3.0);
+            vec3 tir = uWaterScatter * (3.2 + 2.2 * ripple) + vec3(0.02, 0.06, 0.06) * pow(clamp(ripple, 0.0, 1.0), 3.0);
             vec3 col = mix(tir, skyIn * 1.5, window) + uSunColor * (pow(sd, 260.0) * 6.0 + pow(sd, 18.0) * 0.35) * window;
             col = slMedium(col, vWorld);
             gl_FragColor = vec4(col, 1.0);
