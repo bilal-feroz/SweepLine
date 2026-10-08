@@ -314,6 +314,17 @@ export function pointAtArc(L: Pick<CurtainLayout, 'px' | 'pz' | 'ps' | 'n'>, s: 
   return frameAt(L, lo, t);
 }
 
+/** x of the curtain line at lateral position z (the nearer end beyond its lateral extent). */
+export function curtainXAt(L: Pick<CurtainLayout, 'px' | 'pz' | 'n'>, z: number): number {
+  const { px, pz, n } = L;
+  for (let i = 1; i < n; i++) {
+    const a = pz[i - 1];
+    const b = pz[i];
+    if ((z >= a && z <= b) || (z >= b && z <= a)) return px[i - 1] + (px[i] - px[i - 1]) * ((z - a) / (b - a || 1));
+  }
+  return Math.abs(z - pz[0]) < Math.abs(z - pz[n - 1]) ? px[0] : px[n - 1];
+}
+
 function frameAt(L: Pick<CurtainLayout, 'px' | 'pz' | 'ps' | 'n'>, k: number, t: number) {
   const dx = L.px[k + 1] - L.px[k];
   const dz = L.pz[k + 1] - L.pz[k];

@@ -20,8 +20,58 @@ export interface CameraPose {
   target: THREE.Vector3;
 }
 
-/** Camera presets derived from the active anchor layout and the reference site. */
-export function presetPose(key: Exclude<CameraPreset, 'free'>, layout: CurtainLayout): CameraPose {
+/** Perspective preset on a wide screen: from offshore and slightly upstream, about 49° down. */
+const AERIAL_TARGET = new THREE.Vector3(-18.6, 0, -10.2);
+const AERIAL_OFFSET = new THREE.Vector3(-15.9, 137.4, 120.6);
+const _cam = new THREE.PerspectiveCamera();
+const _p = new THREE.Vector3();
+
+/**
+ * Perspective preset for a canvas aspect: the wide-screen framing, moved upstream and back just
+ * enough to keep in view where a run's bloom starts (upstream of the curtain's anchor) as well
+ * as the throat and the intake.
+ */
+function aerialPose(layout: CurtainLayout, aspect: number, fov: number): CameraPose {
+  const keep: Array<[number, number, number]> = [
+    [layout.upstream.x - 22, -1, layout.upstream.z + 3],
+    [layout.upstream.x - 22, -1, -8],
+    [layout.throat.mx, 0, layout.throat.mz],
+    [SITE.intake.x1, SITE.intake.deckY, SITE.intake.mouthZ],
+  ];
+  _cam.fov = fov;
+  _cam.aspect = aspect;
+  _cam.updateProjectionMatrix();
+  const fits = (tx: number, scale: number) => {
+    _cam.position.set(tx, 0, AERIAL_TARGET.z).addScaledVector(AERIAL_OFFSET, scale);
+    _cam.lookAt(tx, 0, AERIAL_TARGET.z);
+    _cam.updateMatrixWorld();
+    for (const k of keep) {
+      _p.set(k[0], k[1], k[2]).project(_cam);
+      if (Math.abs(_p.x) > 0.94 || Math.abs(_p.y) > 0.94) return false;
+    }
+    return true;
+  };
+  let best = { tx: AERIAL_TARGET.x, scale: 2.2 };
+  for (let shift = 0; shift <= 60; shift += 3) {
+    const tx = AERIAL_TARGET.x - shift;
+    if (!fits(tx, 2.2)) continue;
+    let lo = 1;
+    let hi = 2.2;
+    if (!fits(tx, lo)) {
+      for (let i = 0; i < 14; i++) {
+        const mid = (lo + hi) / 2;
+        if (fits(tx, mid)) hi = mid;
+        else lo = mid;
+      }
+    } else hi = lo;
+    if (hi < best.scale - 1e-3) best = { tx, scale: hi };
+  }
+  const target = new THREE.Vector3(best.tx, 0, AERIAL_TARGET.z);
+  return { pos: target.clone().addScaledVector(AERIAL_OFFSET, best.scale), target };
+}
+
+/** Camera presets derived from the active anchor layout and the reference site (`aspect` and `fov` of the view). */
+export function presetPose(key: Exclude<CameraPreset, 'free'>, layout: CurtainLayout, aspect = 16 / 9, fov = 42): CameraPose {
   const th = layout.throat;
   switch (key) {
     case 'top':
@@ -59,7 +109,7 @@ export function presetPose(key: Exclude<CameraPreset, 'free'>, layout: CurtainLa
     }
     case 'aerial':
     default:
-      return { pos: new THREE.Vector3(-150, 74, 96), target: new THREE.Vector3(-18, -4, -14) };
+      return aerialPose(layout, aspect, fov);
   }
 }
 
@@ -136,8 +186,13 @@ export class CameraRig {
     return this.tween !== null;
   }
 
+  /** Preset pose framed for this camera's current aspect. */
+  pose(key: Exclude<CameraPreset, 'free'>, layout: CurtainLayout): CameraPose {
+    return presetPose(key, layout, this.camera.aspect, this.camera.fov);
+  }
+
   goTo(key: Exclude<CameraPreset, 'free'>, layout: CurtainLayout, duration = 1.7): void {
-    const to = presetPose(key, layout);
+    const to = this.pose(key, layout);
     this.flyTo(to, duration);
     this.current = key;
     this.onPresetChange?.(key);
@@ -179,7 +234,7 @@ export class CameraRig {
   }
 
   snap(key: Exclude<CameraPreset, 'free'>, layout: CurtainLayout): void {
-    const p = presetPose(key, layout);
+    const p = this.pose(key, layout);
     this.camera.position.copy(p.pos);
     this.controls.target.copy(p.target);
     this.current = key;

@@ -20,9 +20,10 @@ import {
   S_TRANSFER_QUEUE,
   S_UNDER_SKIRT,
 } from './Agent';
-import { CurtainState, popUpSurfaceTime } from './curtain';
+import { CurtainState, popUpSurfaceTime, skirtSetpoint } from './curtain';
 import { FlowField } from './flowField';
 import {
+  curtainXAt,
   getCurtainLayout,
   nearestSegment,
   SegmentHit,
@@ -198,13 +199,13 @@ export class SimulationEngine {
     this.params = { ...params };
     this.flow.setCurrent(params.currentSpeed, params.currentBearing);
     if (this.curtain) {
-      this.curtain.skirtTarget = params.skirtDepth;
       this.curtain.jetTarget = params.activeFlow ? Math.min(1, Math.max(0, params.jetLevel)) : 0;
       if (this.curtain.layout.angle !== params.anchorAngle && this.curtain.mode === 'STOWED') {
         const layout = getCurtainLayout(params.anchorAngle);
         this.curtain.setLayout(layout);
         this.flow.throat = layout.throat;
       }
+      this.curtain.skirtTarget = skirtSetpoint(params, this.curtain.clearanceLimitedMax);
       // A stowed pop-up curtain lies on the seabed; a workboat curtain is stowed aboard.
       if (this.curtain.mode === 'STOWED') this.curtain.deployMode = params.deployMode;
     }
@@ -243,95 +244,72 @@ export class SimulationEngine {
     return z;
   }
 
-  /**
-   * The bloom already on its way when a run starts, at the density of the bloom arriving from the
-   * spawn line. With an automatic pop-up deployment it starts close in, behind a leading edge that
-   * follows the curtain line (see `ASSUMPTIONS.bloom.popUpFrontMargin`); otherwise upstream of
-   * every anchor layout.
-   */
+  /** The bloom already on its way when a run starts, from the spawn line up to its leading edge. */
   private initialFill(): void {
     const B = ASSUMPTIONS.bloom;
+    const span = this.bloomStartX() - B.approachFillFrom;
     const U = Math.max(0.05, this.params.currentSpeed);
-    const perMetre = this.spawnRate() / (U * 0.85);
-    const from = B.approachFillFrom;
-    if (this.params.deployMode !== 'popup' || !this.params.autoDeploy) {
-      const span = B.approachFillTo - from;
-      const count = Math.round(perMetre * span);
-      for (let i = 0; i < count; i++) {
-        const x = from + this.rng.next() * span;
-        this.spawnOne(x, null);
-      }
-      return;
-    }
-    const front = this.popUpFront(U);
-    const sp = SITE.spawn;
-    // Mean length of the fill over the lateral distribution sets the count.
-    const c = this.patchCenter();
-    const main = B.mainPatchFraction;
-    let wSum = 0;
-    let spanSum = 0;
-    let maxSpan = 0;
-    for (let z = sp.zMin; z <= sp.zMax; z += 0.5) {
-      const g = (z - c) / sp.zSigma;
-      const w = (main * Math.exp(-0.5 * g * g)) / (sp.zSigma * Math.sqrt(2 * Math.PI)) + (1 - main) / (sp.zMax - sp.zMin);
-      const span = Math.max(0, front(z) - from);
-      wSum += w;
-      spanSum += w * span;
-      maxSpan = Math.max(maxSpan, span);
-    }
-    const count = Math.round((perMetre * spanSum) / wSum);
+    const count = Math.round((this.spawnRate() * span) / (U * 0.85));
     for (let i = 0; i < count; i++) {
-      // Lateral position weighted by the fill's length there (rejection), then uniform along it.
-      let z = c;
-      let span = 0;
-      for (let tries = 0; tries < 32; tries++) {
-        z = this.lateralZ(this.rng.next(), this.rng.next(), this.rng.normal(), null);
-        span = Math.max(0, front(z) - from);
-        if (this.rng.next() * maxSpan <= span) break;
-      }
-      this.spawnOne(front(z) - this.rng.next() * span, z);
+      const x = B.approachFillFrom + this.rng.next() * span;
+      this.spawnOne(x, null);
     }
   }
 
   /**
-   * Leading edge for a run with an automatic pop-up deployment, as x by lateral position: each
-   * section of the curtain line set back by the drift until it has surfaced. Computed from the
-   * parameters, so both engines place the same bloom.
+   * Leading edge (x) of the bloom when a run starts. With an automatic pop-up deployment it lies
+   * just upstream of the curtain's upstream anchor: set back from every section by the drift until
+   * that section has surfaced (early warning, deployment confirmation and its pop-up time, at the
+   * local drift speed — slower near the revetment — plus the fastest swimming, × popUpFrontMargin,
+   * plus popUpFrontGap), so the curtain is up before the bloom reaches it. Otherwise (workboat or
+   * manual deployment) upstream of every anchor layout. Computed from the parameters only, so both
+   * engines place the same bloom.
    */
-  private popUpFront(U: number): (z: number) => number {
+  bloomStartX(): number {
     const B = ASSUMPTIONS.bloom;
+    if (this.params.deployMode !== 'popup' || !this.params.autoDeploy) return B.approachFillTo;
     const S = ASSUMPTIONS.sequence;
-    const sp = SITE.spawn;
     const layout = getCurtainLayout(this.params.anchorAngle);
-    const step = 0.5;
-    const n = Math.ceil((sp.zMax - sp.zMin) / step) + 1;
-    const edge = new Float64Array(n).fill(Infinity);
+    const v = this.tmp;
+    let front = Infinity;
     for (let k = 0; k < layout.segCount; k++) {
-      const lead = U * (S.warningAt + S.deployConfirm + popUpSurfaceTime(layout, k)) * B.popUpFrontMargin + B.popUpFrontGap;
-      const x = Math.min(layout.px[k], layout.px[k + 1]) - lead;
-      const j0 = Math.max(0, Math.floor((Math.min(layout.pz[k], layout.pz[k + 1]) - sp.zMin) / step));
-      const j1 = Math.min(n - 1, Math.ceil((Math.max(layout.pz[k], layout.pz[k + 1]) - sp.zMin) / step));
-      for (let j = j0; j <= j1; j++) edge[j] = Math.min(edge[j], x);
+      const x = Math.min(layout.px[k], layout.px[k + 1]);
+      this.flow.sample(x, layout.midZ[k], this.params.bloomMeanDepth, v);
+      const drift = Math.max(0, v.x) + ASSUMPTIONS.agent.swimSpeedMax;
+      const lead = drift * (S.warningAt + S.deployConfirm + popUpSurfaceTime(layout, k)) * B.popUpFrontMargin + B.popUpFrontGap;
+      front = Math.min(front, x - lead);
     }
-    // Lateral positions the curtain does not reach start where an unprotected run would.
-    for (let j = 0; j < n; j++) if (!Number.isFinite(edge[j])) edge[j] = B.approachFillTo;
-    return (z) => edge[Math.min(n - 1, Math.max(0, Math.round((z - sp.zMin) / step)))];
+    return Math.max(B.approachFillFrom + 20, front);
   }
 
-  /** Spawn a concentrated bloom surge (failure injection: high bloom density). */
-  spawnSurge(count: number): void {
+  /**
+   * Leading edge (x by lateral position) for a bloom surge: just upstream of a guiding curtain,
+   * so it reaches the curtain within moments, otherwise where a run's bloom starts.
+   */
+  surgeEdge(): (z: number) => number {
+    const c = this.curtain;
+    if (c && (c.mode === 'DEPLOYED' || c.mode === 'UNREEFING')) {
+      const L = c.layout;
+      return (z) => curtainXAt(L, z) - ASSUMPTIONS.bloom.surgeGap;
+    }
+    const x = this.bloomStartX();
+    return () => x;
+  }
+
+  /** Spawn a concentrated bloom surge (stress test: high bloom density) in a band behind `edge`; it fades in. */
+  spawnSurge(count: number, edge: (z: number) => number): void {
     const B = ASSUMPTIONS.bloom;
     for (let i = 0; i < count; i++) {
-      const x = B.approachFillFrom + this.rng.next() * (B.approachFillTo - B.approachFillFrom);
-      this.spawnOne(x, this.patchCenter() + (this.rng.next() - 0.5) * 50);
+      const z = this.lateralZ(0, 0, 0, this.patchCenter() + (this.rng.next() - 0.5) * 50);
+      this.spawnOne(edge(z) - this.rng.next() * B.surgeDepth, z, false);
     }
   }
 
   /**
-   * Spawn one agent. Always consumes the same number of random draws so the
-   * baseline and SweepLine engines stay synchronised.
+   * Spawn one agent (`visible`: drawn at once rather than fading in). Always consumes the same
+   * number of random draws so the baseline and SweepLine engines stay synchronised.
    */
-  private spawnOne(xOverride: number | null, zOverride: number | null): void {
+  private spawnOne(xOverride: number | null, zOverride: number | null, visible = xOverride !== null): void {
     const r = this.rng;
     const u1 = r.next();
     const u2 = r.next();
@@ -383,7 +361,7 @@ export class SimulationEngine {
     p.contactStart[slot] = -1;
     p.timer[slot] = 0;
     p.queueIndex[slot] = -1;
-    p.fade[slot] = xOverride !== null ? 1 : 0;
+    p.fade[slot] = visible ? 1 : 0;
   }
 
   // ---------------------------------------------------------------- stepping

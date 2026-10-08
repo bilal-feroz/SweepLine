@@ -52,13 +52,16 @@ export const ASSUMPTIONS = {
     approachFillTo: -200,
     /**
      * With an automatic pop-up deployment the run starts with the bloom close in: its leading
-     * edge follows the curtain line, set back from each section by the drift until that section
-     * has surfaced (early warning, deployment confirmation and its pop-up time, × this margin),
-     * plus `popUpFrontGap` (m). Every section is up before the bloom reaches it, and the bloom
-     * meets the curtain soon after; behind the edge it extends back to the spawn line.
+     * edge lies just upstream of the curtain's upstream anchor, set back from every section by the
+     * drift until that section has surfaced (early warning, deployment confirmation and its pop-up
+     * time, × this margin), plus `popUpFrontGap` (m). Every section is up before the bloom reaches
+     * it; behind the edge the bloom extends back to the spawn line.
      */
     popUpFrontMargin: 1.15,
     popUpFrontGap: 6,
+    /** Stress-test bloom surge: a band this deep (m) ending this far (m) upstream of a guiding curtain. */
+    surgeDepth: 45,
+    surgeGap: 8,
   },
 
   curtain: {
@@ -92,6 +95,11 @@ export const ASSUMPTIONS = {
     seabedClearance: 1.0,
     skirtDepthMin: 1.5,
     skirtDepthMax: 4.0,
+    /**
+     * Adaptive skirt: while the bloom's P90 depth is below the skirt setpoint, the winches lower
+     * the skirt to P90 + this margin (m), within the seabed clearance limit.
+     */
+    adaptiveSkirtMargin: 0.3,
     /** Wave overtopping: threshold Hs (m) and gain. */
     overtopThreshold: 1.0,
     overtopGain: 0.02,

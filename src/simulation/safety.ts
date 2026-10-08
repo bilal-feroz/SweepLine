@@ -1,5 +1,6 @@
 import { ASSUMPTIONS } from '../config/assumptions';
 import { OPERATING_ENVELOPE, type EnvelopeKey } from '../config/operatingEnvelope';
+import { bloomP90 } from './curtain';
 import type { EngineMetrics } from './metrics';
 import type { SimulationEngine } from './SimulationEngine';
 import type { SafeOpenPhase, SimParams } from './types';
@@ -92,20 +93,22 @@ export function evaluateEnvelope(
     kind: 'hard',
     scope: 'environment',
   });
-  const p90 = params.bloomMeanDepth + 1.2816 * params.bloomDepthSD;
+  const p90 = bloomP90(params);
   const skirtCap = curtain.clearanceLimitedMax;
+  // The skirt the winches hold, including any automatic lowering for a deep bloom.
+  const skirt = curtain.skirtTarget;
   list.push({
     key: 'bloomDepth',
     label: E.bloomDepth.label,
     value: `${fmt(p90, 1)} m`,
-    limit: `≤ skirt ${fmt(params.skirtDepth, 1)} m`,
-    status: p90 > Math.min(E.bloomDepth.absoluteMax, skirtCap) ? 'out' : p90 > params.skirtDepth ? 'near' : 'ok',
+    limit: `≤ skirt ${fmt(skirt, 1)} m`,
+    status: p90 > Math.min(E.bloomDepth.absoluteMax, skirtCap) ? 'out' : p90 > skirt ? 'near' : 'ok',
     kind: 'advisory',
     scope: 'environment',
     note:
       p90 > Math.min(E.bloomDepth.absoluteMax, skirtCap)
         ? 'Bloom deeper than maximum skirt — SweepLine ineffective'
-        : p90 > params.skirtDepth
+        : p90 > skirt
           ? 'Increase skirt depth to intercept P90'
           : undefined,
   });

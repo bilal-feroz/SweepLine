@@ -43,6 +43,7 @@ function skirtMaterial(ballast: boolean): THREE.ShaderMaterial {
       uSunRefr: SHARED.uSunRefr,
       uRippleMap: SHARED.uRippleMap,
       uHighlight: { value: 0 },
+      uFouling: { value: 0 },
       uModule: { value: ASSUMPTIONS.curtain.moduleLength },
     },
     vertexShader: /* glsl */ `
@@ -104,6 +105,7 @@ function skirtMaterial(ballast: boolean): THREE.ShaderMaterial {
       uniform vec3 uSunDir;
       uniform vec3 uSunColor;
       uniform float uHighlight;
+      uniform float uFouling;
       uniform float uModule;
       varying vec3 vWorld;
       varying vec3 vNormalW;
@@ -114,6 +116,13 @@ function skirtMaterial(ballast: boolean): THREE.ShaderMaterial {
       varying float vLaid;
       ${MEDIUM_GLSL}
       ${CAUSTIC_GLSL}
+      float foulHash(vec2 i) { return fract(sin(dot(i, vec2(127.1, 311.7))) * 43758.5453); }
+      float foulNoise(vec2 p) {
+        vec2 i = floor(p);
+        vec2 f = fract(p);
+        f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(foulHash(i), foulHash(i + vec2(1.0, 0.0)), f.x), mix(foulHash(i + vec2(0.0, 1.0)), foulHash(i + vec2(1.0, 1.0)), f.x), f.y);
+      }
       void main() {
         if (vLaid < 0.5) discard;
         vec3 N = normalize(vNormalW);
@@ -127,6 +136,12 @@ function skirtMaterial(ballast: boolean): THREE.ShaderMaterial {
         // High-visibility band just below the float line.
         ${ballast ? '' : 'base = mix(base, vec3(0.7, 0.42, 0.06), (1.0 - smoothstep(0.0, 0.035, vV)) * 0.8);'}
         base = mix(base, vec3(0.16, 0.17, 0.17), vReef * 0.7);
+        if (uFouling > 0.001) {
+          // Debris and bio-fouling: olive-brown patches that spread with the load, heaviest near the float line.
+          float n = 0.65 * foulNoise(vec2(vS * 0.55, vV * 5.0)) + 0.35 * foulNoise(vec2(vS * 2.1, vV * 17.0)) + (1.0 - vV) * 0.18;
+          float cover = smoothstep(1.02 - uFouling, 1.22 - uFouling, n);
+          base = mix(base, vec3(0.12, 0.11, 0.045), cover * 0.9);
+        }
         vec3 col = base * (diff * uSunColor * 0.9 + vec3(0.18, 0.26, 0.3));
         float foot = length(fwidth(vWorld.xz));
         if (vWorld.y < 0.0) {
@@ -221,6 +236,8 @@ export class CurtainSystem {
   private readonly reefed = new THREE.Color(0x5b6166);
   /** A deflated float tube reads dull and dark. */
   private readonly deflated = new THREE.Color(0x6b4a1c);
+  /** Floats under debris and fouling. */
+  private readonly fouled = new THREE.Color(0x5e5a2a);
   private customFloat: THREE.BufferGeometry | null = null;
 
   constructor(initial: AnchorAngle) {
@@ -462,7 +479,8 @@ export class CurtainSystem {
     }
   }
 
-  update(c: CurtainState, waveTime: number, waveHeight: number, flowHighlight: boolean): void {
+  /** `fouling`: debris and bio-fouling on the curtain, 0..1 (stress test). */
+  update(c: CurtainState, waveTime: number, waveHeight: number, flowHighlight: boolean, fouling = 0): void {
     if (c.layout !== this.layout) this.rebuild(c.layout);
     const L = this.layout;
     const n = L.n;
@@ -501,6 +519,7 @@ export class CurtainSystem {
       m.uniforms.uLiftTan.value = Math.tan((c.liftAngleDeg * Math.PI) / 180);
     }
     this.skirtMat.uniforms.uHighlight.value = flowHighlight ? 1 : 0;
+    for (const m of [this.skirtMat, this.ballastMat]) m.uniforms.uFouling.value = fouling;
     this.skirt.visible = popup || !stowed;
     this.ballast.visible = popup || !stowed;
 
@@ -535,7 +554,7 @@ export class CurtainSystem {
       this.tmpM.compose(this.tmpP, this.tmpQ, this.tmpS);
       this.floats.setMatrixAt(i, this.tmpM);
       // A deflated tube reads dull; each float glows briefly as the inflation front fills it.
-      this.tmpC.copy(this.deflated).lerp(this.amber, inflate).lerp(this.reefed, reefAmt);
+      this.tmpC.copy(this.deflated).lerp(this.amber, inflate).lerp(this.reefed, reefAmt).lerp(this.fouled, fouling * 0.6);
       if (inflate > 0 && inflate < 1) this.tmpC.multiplyScalar(1 + 1.6 * inflate * (1 - inflate));
       this.floats.setColorAt(i, this.tmpC);
       if (f.connector && ci < this.connectors.count) {
