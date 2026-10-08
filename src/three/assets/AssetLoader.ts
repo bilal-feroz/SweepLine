@@ -13,6 +13,9 @@ export interface LoadedAsset {
 
 const DEG = Math.PI / 180;
 
+/** Model URLs present in public/models at build time (vite.config.ts). */
+declare const __BUNDLED_MODELS__: string[];
+
 /**
  * Loads optional GLB assets. Missing files resolve to `null` (no broken
  * models, no thrown errors) and callers fall back to procedural geometry.
@@ -29,6 +32,8 @@ export class AssetLoader {
   }
 
   private async exists(url: string): Promise<boolean> {
+    // A production build knows which models it shipped, so it never requests (and 404s on) the others.
+    if (import.meta.env.PROD && !__BUNDLED_MODELS__.includes(url)) return false;
     try {
       const res = await fetch(url, { method: 'HEAD', cache: 'no-store' });
       if (!res.ok) return false;

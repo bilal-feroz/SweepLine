@@ -177,8 +177,11 @@ model without touching simulation logic. Drop files into **`public/models/`**:
 | `recovery-throat.glb` | Recovery throat bellmouth |
 | `transfer-module.glb` | Transfer module housing |
 
-Missing files are detected (HEAD request) and the procedural fallback is used silently — no broken
-models. Draco- and Meshopt-compressed GLBs are supported (decoders are bundled from three.js).
+Missing files fall back to the procedural geometry silently — no broken models. The dev server
+checks each file with a HEAD request, so a dropped-in model shows up on reload; a production build
+only requests the models that were in `public/models/` when it was built, so a deployment never
+404s on the absent ones. Draco- and Meshopt-compressed GLBs are supported (decoders are bundled
+from three.js).
 
 ### Adjusting model transforms
 

@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -36,8 +36,15 @@ function snapshotPlugin(): Plugin {
   };
 }
 
+/** Optional GLB/GLTF models present in public/models when the app is built (see AssetLoader). */
+function bundledModels(): string[] {
+  const dir = resolve(process.cwd(), 'public/models');
+  return existsSync(dir) ? readdirSync(dir).filter((f) => /\.(glb|gltf)$/i.test(f)).map((f) => `/models/${f}`) : [];
+}
+
 export default defineConfig({
   plugins: [react(), tailwindcss(), snapshotPlugin()],
+  define: { __BUNDLED_MODELS__: JSON.stringify(bundledModels()) },
   server: { port: 5173 },
   build: {
     target: 'es2022',
