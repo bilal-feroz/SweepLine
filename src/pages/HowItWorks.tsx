@@ -1,11 +1,11 @@
-import { ArrowRight, ChevronDown, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { ChevronDown, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useSnap } from '../app/hooks';
 import { AngleDiagram } from '../components/charts/AngleDiagram';
 import { PlanSchematic } from '../components/charts/PlanSchematic';
 import { SideSchematic } from '../components/charts/SideSchematic';
 import { Icon } from '../components/ui/icons';
-import { IconTile, Panel, type TileTone } from '../components/ui/Panel';
+import { FlowArrow, IconTile, Panel, type TileTone } from '../components/ui/Panel';
 import { ASSUMPTIONS } from '../config/assumptions';
 import { OPERATING_ENVELOPE } from '../config/operatingEnvelope';
 import { SITE } from '../config/site';
@@ -93,49 +93,55 @@ function TechnicalDetails() {
         <ChevronDown size={18} className={cn('shrink-0 text-muted transition-transform', open && 'rotate-180')} />
       </button>
       {open && (
-        <div className="grid animate-fade-in grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] gap-5 border-t border-line px-5 pt-4 pb-5">
-          <div className="flex min-w-0 flex-col gap-2">
-            <div className="text-[13px] font-semibold text-ink">Section through the curtain (live values)</div>
-            <div className="overflow-hidden rounded-xl border border-line">
-              <SideSchematic
-                skirt={c.skirtActual}
-                liftDeg={c.liftAngle}
-                seabed={layout.minSeabedDepth}
-                mean={p.bloomMeanDepth}
-                sd={p.bloomDepthSD}
-                p90={snap.bloom.p90}
-                hs={p.waveHeight}
-                current={p.currentSpeed}
-                underPct={snap.sweepline.underSkirtPct}
-                minClearance={OPERATING_ENVELOPE.seabedClearance.min}
-                jet={p.activeFlow ? Math.max(c.jetOutput, c.mode === 'STOWED' ? p.jetLevel : 0) : 0}
-              />
+        <div className="flex animate-fade-in flex-col gap-6 border-t border-line px-5 pt-4 pb-5">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+            <div className="flex min-w-0 flex-col gap-2">
+              <h4 className="text-[13px] font-semibold text-ink">Section through the curtain (live values)</h4>
+              <div className="overflow-hidden rounded-xl border border-line">
+                <SideSchematic
+                  skirt={c.skirtActual}
+                  liftDeg={c.liftAngle}
+                  seabed={layout.minSeabedDepth}
+                  mean={p.bloomMeanDepth}
+                  sd={p.bloomDepthSD}
+                  p90={snap.bloom.p90}
+                  hs={p.waveHeight}
+                  current={p.currentSpeed}
+                  underPct={snap.sweepline.underSkirtPct}
+                  minClearance={OPERATING_ENVELOPE.seabedClearance.min}
+                  jet={p.activeFlow ? Math.max(c.jetOutput, c.mode === 'STOWED' ? p.jetLevel : 0) : 0}
+                />
+              </div>
             </div>
-            <div className="mt-2 text-[13px] font-semibold text-ink">Specification</div>
-            <dl className="grid grid-cols-2 gap-x-6">
+            <div className="flex min-w-0 flex-col gap-2">
+              <div>
+                <h4 className="text-[13px] font-semibold text-ink">Operating envelope (assumed limits)</h4>
+                <p className="mt-0.5 text-[12px] text-muted">Outside these limits SweepLine does not deploy — or retracts — and says so.</p>
+              </div>
+              <div className="card-inner px-3.5 py-1">
+                {snap.envelope.constraints.map((k, i) => (
+                  <div key={k.key} className={cn('grid grid-cols-[minmax(0,1fr)_auto_96px] items-center gap-3 py-2 text-[13px]', i > 0 && 'border-t border-line/60')}>
+                    <span className="min-w-0 truncate text-ink-2">
+                      {k.label}
+                      {k.kind === 'advisory' && <span className="ml-1.5 text-[10.5px] tracking-wide text-dim uppercase">advisory</span>}
+                    </span>
+                    <span className={cn('num text-right', STATUS_TEXT[k.status])}>{k.value}</span>
+                    <span className="num text-right text-[11.5px] text-dim">{k.limit}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div>
+            <h4 className="mb-2 text-[13px] font-semibold text-ink">Specification</h4>
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-1 lg:grid-cols-5">
               {spec.map(([k, v]) => (
-                <div key={k} className="flex flex-col border-b border-line/60 py-1.5">
+                <div key={k} className="flex flex-col gap-0.5 border-t border-line/60 py-2">
                   <dt className="text-[12px] text-muted">{k}</dt>
-                  <dd className="text-[13px] text-ink">{v}</dd>
+                  <dd className="text-[13px] leading-snug text-ink">{v}</dd>
                 </div>
               ))}
             </dl>
-          </div>
-          <div className="min-w-0">
-            <div className="mb-1 text-[13px] font-semibold text-ink">Operating envelope (assumed limits)</div>
-            <p className="mb-2 text-[12px] text-muted">Outside these limits SweepLine does not deploy — or retracts — and says so.</p>
-            {snap.envelope.constraints.map((k) => (
-              <div key={k.key} className="flex items-center justify-between gap-3 border-b border-line/60 py-1.5 text-[13px]">
-                <span className="min-w-0 truncate text-ink-2">
-                  {k.label}
-                  {k.kind === 'advisory' && <span className="ml-1.5 text-[10.5px] tracking-wide text-dim uppercase">advisory</span>}
-                </span>
-                <span className="flex shrink-0 items-center gap-2">
-                  <span className={cn('num', STATUS_TEXT[k.status])}>{k.value}</span>
-                  <span className="num w-[86px] text-right text-[11.5px] text-dim">{k.limit}</span>
-                </span>
-              </div>
-            ))}
           </div>
         </div>
       )}
@@ -153,37 +159,39 @@ export function HowItWorks() {
   return (
     <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
       <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-5 px-6 py-6">
-        <header className="max-w-[860px]">
+        <header className="max-w-[880px]">
           <div className="page-eyebrow">How it works</div>
-          <h1 className="mt-1.5 text-[clamp(30px,2.6vw,42px)] leading-[1.08] font-bold tracking-tight text-white">Don’t stop the bloom. Give it another path.</h1>
-          <p className="mt-2.5 text-[15px] leading-relaxed text-ink-2">
+          <h1 className="mt-1.5 text-[clamp(30px,2.6vw,42px)] leading-[1.08] font-bold tracking-tight text-balance text-white">
+            Don’t stop the bloom. Give it another path.
+          </h1>
+          <p className="mt-2.5 text-[15px] leading-relaxed text-pretty text-ink-2">
             A net blocks the bloom and takes its full force. SweepLine guides it: a curtain that pops up from the seabed on the early warning, makes its
             own gentle current, and sweeps the jellyfish alive around the intake.
           </p>
         </header>
 
-        <section className="card grid grid-cols-4 gap-0 px-2 py-4">
+        <ol className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {STEPS.map((s, i) => (
-            <div key={s.title} className="relative flex items-start gap-3 px-4">
-              <IconTile size={42}>{s.icon}</IconTile>
-              <div className="min-w-0 pr-3">
-                <div className="flex items-center gap-2">
-                  <span className="num text-[11.5px] text-dim">0{i + 1}</span>
-                  <span className="text-[16px] font-semibold text-white">{s.title}</span>
+            <li key={s.title} className="card relative flex flex-col gap-3 p-4">
+              <div className="flex items-center gap-3">
+                <IconTile size={40}>{s.icon}</IconTile>
+                <div className="min-w-0 leading-tight">
+                  <div className="num text-[11.5px] text-dim">0{i + 1}</div>
+                  <div className="text-[16px] font-semibold text-white">{s.title}</div>
                 </div>
-                <p className="mt-0.5 text-[12.5px] leading-snug text-muted">{s.body}</p>
               </div>
-              {i < STEPS.length - 1 && <ArrowRight size={16} className="absolute top-3 -right-2 text-cyan/70" />}
-            </div>
+              <p className="text-[13px] leading-snug text-pretty text-muted">{s.body}</p>
+              {i < STEPS.length - 1 && <FlowArrow top={36} />}
+            </li>
           ))}
-        </section>
+        </ol>
 
-        <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] items-start gap-5">
-          <Panel title="The site from above" subtitle="Schematic reference geometry from the simulation — not ENEC facility data">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
+          <Panel title="The site from above" subtitle="Schematic reference geometry from the simulation — not ENEC facility data" bodyClassName="flex flex-col justify-between gap-3">
             <div className="overflow-hidden rounded-xl border border-line">
               <PlanSchematic selected={p.anchorAngle} jets={p.activeFlow} />
             </div>
-            <div className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1 text-[12.5px] text-ink-2">
+            <div className="flex flex-wrap gap-x-5 gap-y-1 text-[12.5px] text-ink-2">
               <span className="flex items-center gap-2">
                 <span className="h-[3px] w-5 rounded bg-curtain" /> Guide curtain ({p.anchorAngle}°)
               </span>
@@ -196,42 +204,41 @@ export function HowItWorks() {
             </div>
           </Panel>
 
-          <div className="flex min-w-0 flex-col gap-5">
-            <Panel title="Guide, don’t block" subtitle="Why an angled curtain carries so little load">
-              <div className="card-inner px-2 py-2">
-                <AngleDiagram angle={c.attackAngle} u={p.currentSpeed} un={c.normalVelocity} ut={ut} />
-              </div>
-              <p className="mt-2.5 text-[13px] leading-relaxed text-ink-2">
-                At {c.attackAngle.toFixed(0)}°, only <span className="num text-amber">{c.normalVelocity.toFixed(2)} m/s</span> pushes into the curtain while{' '}
-                <span className="num text-teal">{ut.toFixed(2)} m/s</span> carries the bloom along it
-                {p.activeFlow ? (
-                  <>
-                    {' '}
-                    — plus <span className="num text-cyan">{(p.jetLevel * J.conveyorSpeed).toFixed(2)} m/s</span> from the conveyor jets, even at slack tide
-                  </>
-                ) : null}
-                . A net facing the flow takes the full {p.currentSpeed.toFixed(2)} m/s and the bloom’s weight.
-              </p>
-            </Panel>
-
-            <Panel title="Safety story" subtitle="Three independent layers" icon={<ShieldCheck size={18} />} bodyClassName="flex flex-col gap-2">
-              {SAFETY.map((s, i) => (
-                <div key={s.title} className="card-inner flex items-start gap-3 px-3.5 py-3">
-                  <IconTile size={34} tone={s.tone}>
-                    {s.icon}
-                  </IconTile>
-                  <div className="min-w-0">
-                    <div className="text-[14px] font-semibold text-white">
-                      <span className="num mr-1.5 text-dim">{i + 1}.</span>
-                      {s.title}
-                    </div>
-                    <p className="mt-0.5 text-[12.5px] leading-snug text-muted">{s.body}</p>
-                  </div>
-                </div>
-              ))}
-            </Panel>
-          </div>
+          <Panel title="Guide, don’t block" subtitle="Why an angled curtain carries so little load" bodyClassName="flex flex-col gap-3">
+            <div className="card-inner flex flex-1 items-center px-2 py-2">
+              <AngleDiagram angle={c.attackAngle} u={p.currentSpeed} un={c.normalVelocity} ut={ut} />
+            </div>
+            <p className="text-[13px] leading-relaxed text-pretty text-ink-2">
+              At {c.attackAngle.toFixed(0)}°, only <span className="num whitespace-nowrap text-amber">{c.normalVelocity.toFixed(2)} m/s</span> pushes into the
+              curtain while <span className="num whitespace-nowrap text-teal">{ut.toFixed(2)} m/s</span> carries the bloom along it
+              {p.activeFlow ? (
+                <>
+                  {' '}
+                  — plus <span className="num whitespace-nowrap text-cyan">{(p.jetLevel * J.conveyorSpeed).toFixed(2)} m/s</span> from the conveyor jets, even at
+                  slack tide
+                </>
+              ) : null}
+              . A net facing the flow takes the full <span className="whitespace-nowrap">{p.currentSpeed.toFixed(2)} m/s</span> and the bloom’s weight.
+            </p>
+          </Panel>
         </div>
+
+        <Panel title="Safety story" subtitle="Three independent layers" icon={<ShieldCheck size={18} />} bodyClassName="grid grid-cols-1 gap-3 md:grid-cols-3">
+          {SAFETY.map((s, i) => (
+            <div key={s.title} className="card-inner flex items-start gap-3 p-4">
+              <IconTile size={36} tone={s.tone}>
+                {s.icon}
+              </IconTile>
+              <div className="min-w-0">
+                <div className="text-[14.5px] font-semibold text-white">
+                  <span className="num mr-1.5 text-dim">{i + 1}.</span>
+                  {s.title}
+                </div>
+                <p className="mt-1 text-[13px] leading-snug text-pretty text-muted">{s.body}</p>
+              </div>
+            </div>
+          ))}
+        </Panel>
 
         <TechnicalDetails />
       </div>

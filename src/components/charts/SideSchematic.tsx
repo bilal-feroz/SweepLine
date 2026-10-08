@@ -6,6 +6,8 @@ const H = 382;
 const TOP = 64;
 const LEFT = 56;
 const CURTAIN_X = 470;
+/** Dark outline behind labels drawn over the bloom and jets, so they stay legible. */
+const HALO = { stroke: '#082531', strokeWidth: 4, strokeLinejoin: 'round' as const, paintOrder: 'stroke' };
 
 /**
  * Cross-section through the curtain at its shallowest point, drawn from live
@@ -127,7 +129,7 @@ export function SideSchematic({
         );
       })}
       <line x1={LEFT + 4} x2={CURTAIN_X - 14} y1={y(p90)} y2={y(p90)} stroke="#B9CBD3" strokeOpacity="0.7" strokeDasharray="5 4" />
-      <text x={LEFT + 10} y={y(p90) - 6} fill="#B9CBD3" fontSize="11.5">
+      <text x={LEFT + 10} y={y(p90) - 6} fill="#B9CBD3" fontSize="11.5" {...HALO}>
         Bloom P90 {p90.toFixed(1)} m
       </text>
       {/* Under-skirt escape path */}
@@ -141,7 +143,7 @@ export function SideSchematic({
             strokeDasharray="5 4"
             markerEnd="url(#ss-esc)"
           />
-          <text x={CURTAIN_X + 126} y={y(Math.min(p90, seabed - 0.4)) + 22} fill="#f5b94c" fontSize="11.5">
+          <text x={CURTAIN_X + 126} y={y(Math.min(p90, seabed - 0.4)) + 22} fill="#f5b94c" fontSize="11.5" {...HALO}>
             Under-skirt escape {(underPct * 100).toFixed(1)}%
           </text>
         </g>
@@ -170,10 +172,10 @@ export function SideSchematic({
               markerEnd="url(#ss-jet)"
             />
           ))}
-          <text x={CURTAIN_X - 28} y={y(0) + 22} fill="#22d3ee" fontSize="11.5" textAnchor="end">
+          <text x={CURTAIN_X - 28} y={y(0) + 22} fill="#22d3ee" fontSize="11.5" textAnchor="end" {...HALO}>
             Conveyor jets → throat
           </text>
-          <text x={bx - 52} y={Math.min(by + 30, ySea - 10)} fill="#22d3ee" fontSize="11.5" textAnchor="end">
+          <text x={bx - 52} y={Math.min(by + 30, ySea - 10)} fill="#22d3ee" fontSize="11.5" textAnchor="end" {...HALO}>
             Foot jets
           </text>
         </g>

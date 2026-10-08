@@ -1,7 +1,24 @@
+import { ArrowRight } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { cn, type Tone, toneBg } from '../../utils/format';
 
 export type TileTone = 'cyan' | 'red' | 'amber' | 'teal' | 'blue';
+
+/**
+ * Arrow chip between the cards of a horizontal sequence. Place it inside a card (relative) with
+ * `top` set to the card's icon centre; it sits centred in a 12 px (gap-3) gutter.
+ */
+export function FlowArrow({ top }: { top: number }) {
+  return (
+    <span
+      aria-hidden
+      className="absolute -right-[18px] z-10 hidden h-6 w-6 items-center justify-center rounded-full border border-line-strong bg-panel text-cyan lg:flex"
+      style={{ top: top - 12 }}
+    >
+      <ArrowRight size={13} />
+    </span>
+  );
+}
 
 export function IconTile({ children, tone = 'cyan', size = 40, className }: { children: ReactNode; tone?: TileTone; size?: number; className?: string }) {
   return (

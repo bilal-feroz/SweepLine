@@ -4,7 +4,7 @@ import { useHistory, useSnap } from '../app/hooks';
 import { useApp } from '../app/store';
 import { downsample, Legend, SERIES, TimeChart, type SeriesDef } from '../components/charts/TimeChart';
 import { Icon } from '../components/ui/icons';
-import { IconTile, Panel, type TileTone } from '../components/ui/Panel';
+import { FlowArrow, IconTile, Panel, type TileTone } from '../components/ui/Panel';
 import { controller } from '../simulation/SimController';
 import { cn, downloadText, mmss, pct } from '../utils/format';
 
@@ -23,19 +23,18 @@ function Metric({ icon, tone, value, label, detail, valueTone }: { icon: ReactNo
         <span className="text-[14.5px] text-ink">{label}</span>
       </div>
       <div className={cn('num text-[40px] leading-none font-semibold tracking-tight', valueTone)}>{value}</div>
-      <p className="text-[13px] leading-snug text-muted">{detail}</p>
+      <p className="text-[13px] leading-snug text-pretty text-muted">{detail}</p>
     </section>
   );
 }
 
-const BUILT = [
-  { title: 'Simulation visualiser', detail: '3D digital twin of a reference coastal intake' },
-  { title: 'Agent model', detail: 'Seeded agent-based model with a same-seed baseline' },
-];
-const NEXT = [
-  { title: 'Flume calibration', detail: 'Scaled curtain and jets: guidance, skirt depth, under-skirt rate' },
-  { title: 'Biological testing', detail: 'Live Blue Blubber: transfer handling and bell condition' },
-  { title: 'Coastal pilot', detail: 'One curtain arm: pop-up timing and SafeOpen in real conditions' },
+/** Validation roadmap, in order: what exists today, then what comes next. */
+const STAGES: Array<{ done: boolean; title: string; detail: string }> = [
+  { done: true, title: 'Simulation visualiser', detail: '3D digital twin of a reference coastal intake' },
+  { done: true, title: 'Agent model', detail: 'Seeded agent-based model with a same-seed baseline' },
+  { done: false, title: 'Flume calibration', detail: 'Scaled curtain and jets: guidance, skirt depth, under-skirt rate' },
+  { done: false, title: 'Biological testing', detail: 'Live Blue Blubber: transfer handling and bell condition' },
+  { done: false, title: 'Coastal pilot', detail: 'One curtain arm: pop-up timing and SafeOpen in real conditions' },
 ];
 
 /** 03 — Evidence: does SweepLine appear to work, and how much should we trust the result? */
@@ -52,19 +51,21 @@ export function Evidence() {
   return (
     <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
       <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-5 px-6 py-6">
-        <header className="flex items-end justify-between gap-6">
-          <div className="max-w-[880px]">
+        <header className="flex items-start justify-between gap-6">
+          <div className="min-w-0 max-w-[900px]">
             <div className="page-eyebrow">Evidence</div>
-            <h1 className="mt-1.5 text-[clamp(30px,2.6vw,42px)] leading-[1.08] font-bold tracking-tight text-white">
+            <h1 className="mt-1.5 text-[clamp(30px,2.6vw,42px)] leading-[1.08] font-bold tracking-tight text-balance text-white">
               <span className="text-teal">{reduction === null ? '—' : pct(reduction)}</span> fewer intake contacts
               <span className="text-ink-2"> in the same-seed simulation</span>
             </h1>
-            <p className="mt-2.5 text-[15px] leading-relaxed text-ink-2">
-              The same bloom — identical seed, timing, positions and depths — runs with and without SweepLine. {mmss(snap.simTime)} simulated ·{' '}
-              {snap.scenarioName}.
+            <p className="mt-2.5 text-[15px] leading-relaxed text-pretty text-ink-2">
+              The same bloom — identical seed, timing, positions and depths — runs with and without SweepLine.
+            </p>
+            <p className="mt-1 text-[13px] text-muted">
+              <span className="num">{mmss(snap.simTime)}</span> simulated · {snap.scenarioName}
             </p>
           </div>
-          <div className="flex shrink-0 gap-2">
+          <div className="flex shrink-0 gap-2 pt-1">
             <button
               type="button"
               className="btn !h-[38px] !px-3.5"
@@ -83,13 +84,23 @@ export function Evidence() {
                 downloadText(`sweepline-metrics-${snap.params.seed}.csv`, controller.exportCsv(), 'text/csv');
                 showToast('Metric history exported (CSV)', 'ok');
               }}
+              title="Metric history, one row per sample"
             >
               <Download size={15} /> CSV
             </button>
           </div>
         </header>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="flex items-start gap-3 rounded-2xl border border-amber/30 bg-amber/[0.06] px-4 py-3">
+          <Info size={18} className="mt-[3px] shrink-0 text-amber" />
+          <p className="text-[13.5px] leading-relaxed text-pretty text-ink-2">
+            <span className="font-semibold text-amber">Simulation estimates — not field-validated.</span> These numbers come from an uncalibrated
+            agent-based model, not CFD or field trials. They show the mechanism and its trade-offs; flume and biological testing will set the real values.
+            Every assumption is exported with the run data.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <Metric
             icon={<Icon name="intake" size={20} />}
             tone="teal"
@@ -120,53 +131,24 @@ export function Evidence() {
         </div>
 
         <Panel title="Jellyfish reaching the intake" subtitle="Cumulative contacts with the intake screens — same bloom, with and without SweepLine" actions={<Legend series={BOTH} />}>
-          <TimeChart data={rows} series={BOTH} digits={0} height={260} yLabel="Intake contacts (cumulative)" />
+          <TimeChart data={rows} series={BOTH} digits={0} height={280} yLabel="Intake contacts (cumulative)" />
         </Panel>
 
-        <div className="grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] items-stretch gap-5">
-          <Panel title="Validation status" subtitle="What exists today and what comes next" icon={<FlaskRound size={18} />}>
-            <div className="grid grid-cols-2 gap-5">
-              <div>
-                <div className="mb-2 text-[12px] font-semibold tracking-[0.08em] text-teal uppercase">Built</div>
-                <div className="flex flex-col gap-2">
-                  {BUILT.map((x) => (
-                    <div key={x.title} className="flex items-start gap-2.5">
-                      <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-teal" />
-                      <span>
-                        <span className="block text-[14px] text-white">{x.title}</span>
-                        <span className="block text-[12.5px] text-muted">{x.detail}</span>
-                      </span>
-                    </div>
-                  ))}
+        <Panel title="Validation roadmap" subtitle="What exists today and what comes next" icon={<FlaskRound size={18} />}>
+          <ol className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
+            {STAGES.map((st, i) => (
+              <li key={st.title} className="card-inner relative flex flex-col gap-2 p-4">
+                <div className={cn('flex items-center gap-2 text-[11.5px] font-semibold tracking-[0.08em] uppercase', st.done ? 'text-teal' : 'text-amber')}>
+                  {st.done ? <CheckCircle2 size={16} /> : <CircleDashed size={16} />}
+                  {st.done ? 'Built' : 'Next'}
                 </div>
-              </div>
-              <div>
-                <div className="mb-2 text-[12px] font-semibold tracking-[0.08em] text-amber uppercase">Next</div>
-                <div className="flex flex-col gap-2">
-                  {NEXT.map((x) => (
-                    <div key={x.title} className="flex items-start gap-2.5">
-                      <CircleDashed size={17} className="mt-0.5 shrink-0 text-amber" />
-                      <span>
-                        <span className="block text-[14px] text-white">{x.title}</span>
-                        <span className="block text-[12.5px] text-muted">{x.detail}</span>
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </Panel>
-          <section className="card flex flex-col justify-center gap-3 border-amber/30 p-6">
-            <div className="flex items-center gap-2.5 text-amber">
-              <Info size={20} />
-              <span className="text-[19px] font-semibold">Simulation estimates. Not field-validated.</span>
-            </div>
-            <p className="text-[13.5px] leading-relaxed text-ink-2">
-              These numbers come from an uncalibrated agent-based model, not CFD or field trials. They show the mechanism and its trade-offs; flume and
-              biological testing will set the real values. Every assumption is exported with the run data.
-            </p>
-          </section>
-        </div>
+                <div className="text-[14.5px] font-semibold text-white">{st.title}</div>
+                <p className="text-[12.5px] leading-snug text-pretty text-muted">{st.detail}</p>
+                {i < STAGES.length - 1 && <FlowArrow top={24} />}
+              </li>
+            ))}
+          </ol>
+        </Panel>
       </div>
     </div>
   );

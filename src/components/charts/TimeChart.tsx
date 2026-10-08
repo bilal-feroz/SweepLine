@@ -97,10 +97,14 @@ export function TimeChart({
       placed.set(s.key, y);
       const text = `${v.toFixed(digits)}${unit.trim() === '%' ? '%' : ''}`;
       const w = text.length * 7 + 14;
-      const x = Number(props.x) + 7;
+      // Offset past the last time label on the x axis, joined to the line end by a short leader.
+      const px = Number(props.x);
+      const py = Number(props.y);
+      const x = px + 24;
       return (
         <g>
-          <circle cx={Number(props.x)} cy={Number(props.y)} r={3.5} fill={s.color} stroke="#0B151F" strokeWidth={1.5} />
+          <path d={`M${px + 4} ${py} L${px + 14} ${py} L${x} ${y}`} fill="none" stroke={s.color} strokeOpacity={0.55} strokeWidth={1} />
+          <circle cx={px} cy={py} r={3.5} fill={s.color} stroke="#0B151F" strokeWidth={1.5} />
           <rect x={x} y={y - 10.5} width={w} height={21} rx={6} fill="#0B151F" stroke={s.color} strokeOpacity={0.75} />
           <text x={x + w / 2} y={y + 4} textAnchor="middle" fill="#E7F1F5" fontSize={11.5} fontFamily="JetBrains Mono, monospace">
             {text}
