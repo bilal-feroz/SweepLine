@@ -27,8 +27,8 @@ function skyMaterial(): THREE.ShaderMaterial {
     uniforms: {
       uSunDir: SHARED.uSunDir,
       uSunColor: SHARED.uSunColor,
-      uZenith: { value: new THREE.Color(0.055, 0.2, 0.5) },
-      uHorizon: { value: new THREE.Color(0.4, 0.53, 0.64) },
+      uZenith: { value: new THREE.Color(0.03, 0.18, 0.6) },
+      uHorizon: { value: new THREE.Color(0.45, 0.63, 0.8) },
       uGround: { value: new THREE.Color(0.2, 0.26, 0.3) },
       uWaterScatter: SHARED.uWaterScatter,
     },

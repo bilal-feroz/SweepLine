@@ -34,12 +34,22 @@ export const ASSUMPTIONS = {
     /** Fraction of spawns drawn from the main (near-shore) patch; the rest is a broad background. */
     mainPatchFraction: 0.88,
     /** Slow lateral wander of the patch centre (m). */
-    patchWander: 18,
+    patchWander: 6,
+    /**
+     * Once an agent has passed the intake reference line clear of the site, it is no
+     * longer tracked: it fades out over this distance (m) and leaves the simulation.
+     * Its outcome is already counted.
+     */
+    passedFadeDistance: 30,
     /** Temporal patchiness of the arrival rate (± fraction). */
     rateVariation: 0.3,
-    /** Leading edge of the bloom when a run starts from the approach stage (m). */
+    /**
+     * Extent of the bloom when a run starts from the approach stage (m). The early warning
+     * arrives while the leading edge is still upstream of every anchor layout, so the pop-up
+     * curtain is up before the bloom reaches it (none is trapped on the shore side).
+     */
     approachFillFrom: -240,
-    approachFillTo: -70,
+    approachFillTo: -200,
   },
 
   curtain: {
@@ -108,6 +118,14 @@ export const ASSUMPTIONS = {
     popUpDelay: 15,
     /** Pop-up: speed of the inflation front along the curtain from the throat end (m/s). */
     popUpSpeed: 2.5,
+    /**
+     * Pop-up: ascent speed of an inflated section from the seabed to the surface (m/s), so a
+     * section takes ~10–16 s to surface over 5–8 m of water. A section guides only once its
+     * float line is at the surface. Assumption — to be confirmed by flume tests.
+     */
+    riseSpeed: 0.5,
+    /** Pop-up: sink speed of a vented section settling back onto the seabed when stowing (m/s). Assumption. */
+    sinkSpeed: 0.35,
     /** Workboat option: crew and vessel mobilisation before laying starts (s). */
     workboatMobilisation: 900,
   },
@@ -122,10 +140,11 @@ export const ASSUMPTIONS = {
 
   transfer: {
     /**
-     * Transfer rate at 100 % capacity, per 1000 simulated agents (agents/s). Sized for the
-     * active curtain, which delivers more of the bloom to the throat than a passive one.
+     * Transfer rate at 100 % capacity, per 1000 simulated agents (agents/s). Sized so the
+     * reference bloom — which arrives along the coast and almost all reaches the throat —
+     * runs at roughly 55–75 % utilisation, leaving headroom for rate surges.
      */
-    designRatePerThousand: 0.48,
+    designRatePerThousand: 0.85,
     /** Nominal transfer water flow at 100 % capacity (m³/h). */
     designFlowM3h: 640,
     /** Time for the standby path to reach full capacity after a primary fault (s). */
@@ -143,6 +162,9 @@ export const ASSUMPTIONS = {
     /** Assumed transfer-line length to the safe release zone (m) — simulation assumption. */
     distanceOptions: [250, 500, 750] as const,
     jetSpeed: 0.35,
+    /** Released jellyfish are tracked while they clear the outlet plume (s), then fade out over fadeTime and leave the simulation. */
+    trackTime: 40,
+    fadeTime: 10,
   },
 
   intake: {

@@ -9,13 +9,13 @@ import { IconTile, Panel, type TileTone } from '../components/ui/Panel';
 import { ASSUMPTIONS } from '../config/assumptions';
 import { OPERATING_ENVELOPE } from '../config/operatingEnvelope';
 import { SITE } from '../config/site';
+import { popUpDuration } from '../simulation/curtain';
 import { getCurtainLayout } from '../simulation/geometry';
 import type { ConstraintStatus } from '../simulation/safety';
 import { cn } from '../utils/format';
 
 const C = ASSUMPTIONS.curtain;
 const J = ASSUMPTIONS.jets;
-const D = ASSUMPTIONS.deploy;
 
 const STEPS: Array<{ icon: ReactNode; title: string; body: string }> = [
   {
@@ -70,7 +70,7 @@ function TechnicalDetails() {
   const p = snap.params;
   const c = snap.curtain;
   const layout = getCurtainLayout(p.anchorAngle);
-  const popUpMin = (D.popUpDelay + (c.length + C.skirtDropLag + 3) / D.popUpSpeed) / 60;
+  const popUpMin = popUpDuration(layout) / 60;
   const spec: Array<[string, string]> = [
     ['Anchor layouts', '15° / 20° / 25° pre-engineered'],
     ['Curtain length (20°)', `${getCurtainLayout(20).length.toFixed(0)} m in ${C.moduleLength} m modules`],

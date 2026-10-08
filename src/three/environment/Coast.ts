@@ -52,13 +52,13 @@ export function buildCoast(): CoastParts {
   const mats = {
     concrete: mediumMaterial({ map: concreteTex.map, normalMap: concreteTex.normal, roughness: 0.88, metalness: 0, color: 0xdedbd2 }),
     concreteDark: mediumMaterial({ map: concreteTex.map, normalMap: concreteTex.normal, roughness: 0.9, color: 0x9c9890 }),
-    land: mediumMaterial({ map: makeLandTexture(512), color: 0xd6cdb8, roughness: 0.97 }, false),
+    land: mediumMaterial({ map: makeLandTexture(512), color: 0xe8d6b0, roughness: 0.97 }, false),
     asphalt: mediumMaterial({ color: 0x4a4d50, roughness: 0.92 }, false),
     steel: mediumMaterial({ color: 0x3d4a52, roughness: 0.55, metalness: 0.55 }),
     yellow: mediumMaterial({ color: 0xe8b23a, roughness: 0.5, metalness: 0.2 }, false),
     glass: mediumMaterial({ color: 0x1a3442, roughness: 0.12, metalness: 0.75, emissive: 0x081820, emissiveIntensity: 0.6 }, false),
     cladding: mediumMaterial({ color: 0xc4c8c6, roughness: 0.7, metalness: 0.05 }, false),
-    claddingBlue: mediumMaterial({ color: 0x7c919e, roughness: 0.6, metalness: 0.1 }, false),
+    claddingBlue: mediumMaterial({ color: 0x6f93ab, roughness: 0.6, metalness: 0.1 }, false),
     rockCore: mediumMaterial({ color: 0x6f6a60, roughness: 0.98 }),
   };
 

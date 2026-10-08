@@ -25,7 +25,8 @@ export function presetPose(key: Exclude<CameraPreset, 'free'>, layout: CurtainLa
   const th = layout.throat;
   switch (key) {
     case 'top':
-      return { pos: new THREE.Vector3(0, 300, 22.01), target: new THREE.Vector3(0, 0, 22) };
+      // Framed so the land strip, not the curtain's upstream end, sits under the Live headline (top left).
+      return { pos: new THREE.Vector3(-14, 330, -3.99), target: new THREE.Vector3(-14, 0, -4) };
     case 'compare':
       return { pos: new THREE.Vector3(-42, 292, 92), target: new THREE.Vector3(-40, -2, -22) };
     case 'underwater': {
@@ -63,6 +64,8 @@ export function presetPose(key: Exclude<CameraPreset, 'free'>, layout: CurtainLa
 }
 
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+/** Quintic ease (zero speed and acceleration at both ends) for long orbit swings. */
+const smoother = (t: number) => t * t * t * (t * (t * 6 - 15) + 10);
 
 /**
  * Flight paths: 'arc' lifts the camera along a quadratic curve (preset changes);
@@ -89,7 +92,7 @@ const _off = new THREE.Vector3();
  * follows: target lerped, distance in log space, shortest heading turn, eased.
  */
 export function orbitPose(from: CameraPose, to: CameraPose, t: number, out: CameraPose): CameraPose {
-  const k = ease(t);
+  const k = smoother(t);
   _sphA.setFromVector3(_off.subVectors(from.pos, from.target));
   _sphB.setFromVector3(_off.subVectors(to.pos, to.target));
   let dTheta = _sphB.theta - _sphA.theta;

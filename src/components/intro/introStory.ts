@@ -160,11 +160,14 @@ export function currentStreaks(a: number): { heads: string; tails: string } {
 
 // ------------------------------------------------------------------ bloom
 
-/** Soft density field: ellipses (site metres) where the approaching bloom concentrates. */
+/**
+ * Soft density field: ellipses (site metres) where the approaching bloom concentrates — the
+ * coastal band the intake draws from, narrowing along the curtain toward the throat.
+ */
 export const HAZE = [
-  { x: -205, z: 40, rx: 150, rz: 92, o: 1 },
-  { x: -95, z: -6, rx: 82, rz: 40, o: 0.8 },
-  { x: -300, z: 120, rx: 110, rz: 70, o: 0.6 },
+  { x: -185, z: -28, rx: 110, rz: 24, o: 1 },
+  { x: -75, z: -20, rx: 62, rz: 15, o: 0.8 },
+  { x: -275, z: -27, rx: 58, rz: 20, o: 0.55 },
 ];
 
 /** One in every `STRIDE` agents (by id) is drawn as a dot. */
@@ -198,8 +201,8 @@ export function bloomDots(engine: SimulationEngine | null, ready: boolean, a: nu
   let seed = 7;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
   for (let k = 0; k < 64; k++) {
-    const x0 = -330 + rnd() * 380;
-    const z = Math.max(-50, Math.min(190, -16 + (rnd() + rnd() + rnd() - 1.5) * 70));
+    const x0 = -290 + rnd() * 270;
+    const z = Math.max(-48, Math.min(-8, -27 + (rnd() + rnd() + rnd() - 1.5) * 16));
     const x = x0 + ((a * 1.5) % 40);
     const s = `M${f1(x)} ${f1(z)}h0.01`;
     if (k % 3 === 0) bright += s;

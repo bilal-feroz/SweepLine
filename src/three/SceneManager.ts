@@ -13,6 +13,7 @@ import { adaptExternalJellyGeometry, buildJellyfishGeometry, FAR_LOD, NEAR_LOD }
 import { buildWorkboat } from './assets/procedural/workboat';
 import { CameraRig, presetPose, type CameraPreset } from './cameras/CameraRig';
 import { buildCoast } from './environment/Coast';
+import { SCENE_TONE_MAPPING } from './environment/grade';
 import { Seabed } from './environment/Seabed';
 import { SHARED } from './environment/shaderChunks';
 import { SkyDome } from './environment/Sky';
@@ -104,8 +105,8 @@ export class SceneManager {
     this.pixelRatio = Math.min(window.devicePixelRatio || 1, 1.75);
     this.renderer.setPixelRatio(this.pixelRatio);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 0.95;
+    this.renderer.toneMapping = SCENE_TONE_MAPPING;
+    this.renderer.toneMappingExposure = 1.02;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.shadowMap.autoUpdate = false;
@@ -132,8 +133,8 @@ export class SceneManager {
     this.sky = new SkyDome(this.renderer);
     this.scene.add(this.sky.mesh);
     this.scene.environment = this.sky.envMap;
-    this.scene.environmentIntensity = 0.55;
-    this.sun = new THREE.DirectionalLight(0xfff1dc, 2.5);
+    this.scene.environmentIntensity = 0.6;
+    this.sun = new THREE.DirectionalLight(0xffeed4, 2.65);
     const sd = SHARED.uSunDir.value;
     this.sun.position.set(sd.x * 400, sd.y * 400, sd.z * 400);
     this.sun.target.position.set(0, 0, 0);
@@ -149,7 +150,7 @@ export class SceneManager {
     this.sun.shadow.bias = -0.0006;
     this.sun.shadow.normalBias = 0.5;
     this.scene.add(this.sun, this.sun.target);
-    this.scene.add(new THREE.HemisphereLight(0xa9c9df, 0x6d6150, 0.9));
+    this.scene.add(new THREE.HemisphereLight(0x9fcbed, 0x84714f, 0.9));
 
     // ------------------------------------------------ environment
     this.water = new Water(this.sky.cubeTarget.texture);

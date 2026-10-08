@@ -1,13 +1,25 @@
 import * as THREE from 'three';
 import { ASSUMPTIONS } from '../../config/assumptions';
-import { seabedDepth } from '../../config/site';
+import { SEABED_DEPTH_GLSL, seabedDepth } from '../../config/site';
 import { getCurtainLayout, pointAtArc, type CurtainLayout } from '../../simulation/geometry';
 import type { CurtainState } from '../../simulation/curtain';
 import { ANCHOR_ANGLES, type AnchorAngle } from '../../simulation/types';
 import { WAVES_GLSL, waveElevation } from '../../simulation/waves';
 import { CAUSTIC_GLSL, MEDIUM_GLSL, SHARED, mediumMaterial } from '../environment/shaderChunks';
+import { makeFoamSprite } from '../environment/textures';
 
 const SKIRT_ROWS = 14;
+/** Surface white-water rings where pop-up sections surface: pool size and lifetime (real seconds). */
+const FOAM = 48;
+const FOAM_LIFE = 2.4;
+
+const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
+const smooth = (a: number, b: number, v: number) => {
+  const t = clamp01((v - a) / (b - a));
+  return t * t * (3 - 2 * t);
+};
+/** Float-line height from rise progress — the first part of the rise is the float inflating on the seabed (same curve as the skirt shader). */
+const liftOf = (rise: number) => smooth(0.08, 1, rise);
 
 function skirtMaterial(ballast: boolean): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
@@ -32,6 +44,7 @@ function skirtMaterial(ballast: boolean): THREE.ShaderMaterial {
     },
     vertexShader: /* glsl */ `
       ${WAVES_GLSL}
+      ${SEABED_DEPTH_GLSL}
       attribute float aCol;
       attribute float aV;
       attribute float aS;
@@ -53,26 +66,34 @@ function skirtMaterial(ballast: boolean): THREE.ShaderMaterial {
         vec4 cd = texture2D(uColumns, vec2((aCol + 0.5) / uColumnCount, 0.5));
         float frac = cd.r;
         float reef = cd.g;
-        float laid = cd.b;
+        float rise = cd.b;
+        float present = cd.a;
         vec2 slope;
         float eta = waveElevation(position.xz, slope);
+        float floorY = 0.06 - seabedDepth(position.xz);
+        // Float line: inflating on the seabed, rising through the water column, then riding the waves.
+        float lift = smoothstep(0.08, 1.0, rise);
+        float top = mix(floorY + 0.24, eta + 0.06, lift);
         float depth = uSkirtDepth * frac;
-        float top = eta + 0.06;
         float v = ${ballast ? '1.0' : 'aV'};
         vec3 p = vec3(position.x, top - v * depth, position.z);
-        float billow = v * v * depth * uLiftTan * 0.85 + v * 0.05 * sin(uTime * 1.2 + aS * 0.31);
+        float billow = (v * v * depth * uLiftTan * 0.85 + v * 0.05 * sin(uTime * 1.2 + aS * 0.31)) * lift;
         p.xz -= aN * billow;
+        // Skirt that reaches the seabed lies folded along the bottom on the lee side.
+        float spill = max(floorY - p.y, 0.0);
+        p.y += spill;
+        p.xz -= aN * spill * 0.55;
         ${ballast ? 'p.xz += aN * aRing.x; p.y += aRing.y;' : ''}
-        if (laid < 0.5) p.y = top + 0.02;
+        if (present < 0.5) p.y = top + 0.02;
         vWorld = p;
         vec3 nrm = normalize(vec3(aN.x, 0.25 * uLiftTan * v, aN.y));
-        ${ballast ? 'nrm = normalize(vec3(aN.x * aRing.x, aRing.y, aN.y * aRing.x));' : ''}
+        ${ballast ? 'nrm = normalize(vec3(aN.x * aRing.x, aRing.y, aN.y * aRing.x));' : 'nrm = spill > 0.001 ? vec3(0.0, 1.0, 0.0) : nrm;'}
         vNormalW = nrm;
         vV = v;
         vS = aS;
         vFrac = frac;
         vReef = reef;
-        vLaid = laid;
+        vLaid = present;
         gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
       }
     `,
@@ -125,6 +146,8 @@ interface FloatSlot {
   z: number;
   tx: number;
   tz: number;
+  /** Seabed height under the float (m, negative). */
+  floor: number;
   connector: boolean;
 }
 
@@ -132,7 +155,10 @@ interface FloatSlot {
  * Renders the SweepLine guide curtain from the simulation's CurtainState:
  * floats on the shared sea state, a GPU-displaced skirt (deploy / reef /
  * blow-back / heave), weighted lower edge, module joints, anchors and the
- * pre-engineered anchor-layout previews.
+ * pre-engineered anchor-layout previews. A pop-up curtain is drawn through its
+ * whole cycle: stowed flat on the seabed, floats inflating as the front passes,
+ * each section rising with its skirt peeling off the bottom, white water as it
+ * surfaces, and its marker buoys coming up with it.
  */
 export class CurtainSystem {
   readonly group = new THREE.Group();
@@ -146,6 +172,16 @@ export class CurtainSystem {
   private floats!: THREE.InstancedMesh;
   private connectors!: THREE.InstancedMesh;
   private floatSlots: FloatSlot[] = [];
+  /** Last rendered rise per float (foam spawns where a section surfaces). */
+  private prevRise = new Float32Array(0);
+  private risePrimed = false;
+  private readonly foam: THREE.InstancedMesh;
+  private readonly foamX = new Float32Array(FOAM);
+  private readonly foamZ = new Float32Array(FOAM);
+  private readonly foamRot = new Float32Array(FOAM);
+  private readonly foamAge = new Float32Array(FOAM).fill(FOAM_LIFE);
+  private foamNext = 0;
+  private lastTime = 0;
   private readonly buoys = new THREE.Group();
   private readonly anchorBlocks = new THREE.Group();
   private readonly previews = new THREE.Group();
@@ -161,6 +197,8 @@ export class CurtainSystem {
   private readonly zAxis = new THREE.Vector3(0, 0, 1);
   private readonly amber = new THREE.Color(0xf59e0b);
   private readonly reefed = new THREE.Color(0x5b6166);
+  /** A deflated float tube reads dull and dark. */
+  private readonly deflated = new THREE.Color(0x6b4a1c);
   private customFloat: THREE.BufferGeometry | null = null;
 
   constructor(initial: AnchorAngle) {
@@ -176,6 +214,20 @@ export class CurtainSystem {
     this.reefMarker.renderOrder = 22;
     this.reefMarker.visible = false;
     this.group.add(this.reefMarker);
+    this.foam = new THREE.InstancedMesh(
+      new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ map: makeFoamSprite(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }),
+      FOAM,
+    );
+    this.foam.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.foam.frustumCulled = false;
+    this.foam.renderOrder = 12;
+    this.foam.name = 'curtain-foam';
+    for (let k = 0; k < FOAM; k++) {
+      this.foam.setMatrixAt(k, this.tmpM.makeScale(0, 0, 0));
+      this.foam.setColorAt(k, this.tmpC.setScalar(0));
+    }
+    this.group.add(this.foam);
     this.rebuild(this.layout);
   }
 
@@ -305,8 +357,10 @@ export class CurtainSystem {
     for (let s = spacing * 0.5; s < L.length; s += spacing) {
       const f = pointAtArc(L, s);
       const nearJoint = Math.abs(((s + moduleLen / 2) % moduleLen) - moduleLen / 2) < spacing * 0.5;
-      this.floatSlots.push({ s, x: f.x, z: f.z, tx: f.tx, tz: f.tz, connector: nearJoint });
+      this.floatSlots.push({ s, x: f.x, z: f.z, tx: f.tx, tz: f.tz, floor: 0.06 - seabedDepth(f.x, f.z), connector: nearJoint });
     }
+    this.prevRise = new Float32Array(this.floatSlots.length);
+    this.risePrimed = false;
     const floatGeo =
       this.customFloat ?? new THREE.CapsuleGeometry(0.31, 0.72, 4, 14).rotateZ(Math.PI / 2);
     this.floats = new THREE.InstancedMesh(floatGeo, this.floatMat, this.floatSlots.length);
@@ -389,22 +443,31 @@ export class CurtainSystem {
     const laidFrom = L.length - c.deployFront;
     const stowed = c.mode === 'STOWED';
     const reefing = c.mode === 'REEFING' || c.mode === 'REEFED' || c.mode === 'UNREEFING';
-    // Column data: R = skirt fraction, G = reefed, B = laid.
+    // A pop-up curtain is always in the water: stowed on the seabed, rising, or at the surface.
+    const popup = c.deployMode === 'popup';
+    const band = ASSUMPTIONS.curtain.reefBand;
+    // Column data: R = skirt fraction, G = reefed, B = float-line rise, A = in the water.
     for (let i = 0; i < n; i++) {
       const s = L.ps[i];
+      const rise = (c.segRise[Math.max(0, i - 1)] + c.segRise[Math.min(i, L.segCount - 1)]) * 0.5;
       const laid = !stowed && s >= laidFrom - 0.01;
       let frac = 0;
       let reef = 0;
-      if (laid) {
-        const drop = c.mode === 'DEPLOYING' ? Math.min(1, Math.max(0, (s - laidFrom - 3) / ASSUMPTIONS.curtain.skirtDropLag)) : 1;
-        const r = reefing ? Math.min(1, Math.max(0, (s - c.reefFront) / ASSUMPTIONS.curtain.reefBand)) : 1;
+      if (popup) {
+        // The skirt hangs full length beneath a submerged float; at the surface it follows reefing and blow-back.
+        const r = reefing && rise >= 1 ? clamp01((s - c.reefFront) / band) : 1;
+        frac = rise < 1 ? 1 : r * c.liftCos;
+        reef = 1 - r;
+      } else if (laid) {
+        const drop = c.mode === 'DEPLOYING' ? clamp01((s - laidFrom - 3) / ASSUMPTIONS.curtain.skirtDropLag) : 1;
+        const r = reefing ? clamp01((s - c.reefFront) / band) : 1;
         frac = drop * r * c.liftCos;
         reef = 1 - r;
       }
       this.columnData[i * 4] = Math.round(Math.max(0.02, frac) * 255);
       this.columnData[i * 4 + 1] = Math.round(reef * 255);
-      this.columnData[i * 4 + 2] = laid ? 255 : 0;
-      this.columnData[i * 4 + 3] = 255;
+      this.columnData[i * 4 + 2] = Math.round((popup ? rise : laid ? 1 : 0) * 255);
+      this.columnData[i * 4 + 3] = popup || laid ? 255 : 0;
     }
     this.columnTex.needsUpdate = true;
     for (const m of [this.skirtMat, this.ballastMat]) {
@@ -412,40 +475,60 @@ export class CurtainSystem {
       m.uniforms.uLiftTan.value = Math.tan((c.liftAngleDeg * Math.PI) / 180);
     }
     this.skirtMat.uniforms.uHighlight.value = flowHighlight ? 1 : 0;
-    this.skirt.visible = !stowed;
-    this.ballast.visible = !stowed;
+    this.skirt.visible = popup || !stowed;
+    this.ballast.visible = popup || !stowed;
 
-    // Floats ride the shared sea state; a pop-up curtain's floats rise from below near the front.
-    const popFront = c.deployMode === 'popup' && (c.mode === 'DEPLOYING' || c.mode === 'STOWING');
+    // Floats: flat on the seabed while stowed, filling as the inflation front passes, rising, then riding the sea state.
+    const now = SHARED.uTime.value;
+    const rdt = Math.min(0.1, Math.max(0, now - this.lastTime));
+    this.lastTime = now;
+    let surfacing = 0;
     let ci = 0;
     for (let i = 0; i < this.floatSlots.length; i++) {
       const f = this.floatSlots[i];
       const laid = !stowed && f.s >= laidFrom;
-      if (!laid) {
+      if (!popup && !laid) {
         this.tmpM.makeScale(0, 0, 0);
         this.floats.setMatrixAt(i, this.tmpM);
         continue;
       }
-      const reefAmt = reefing ? 1 - Math.min(1, Math.max(0, (f.s - c.reefFront) / ASSUMPTIONS.curtain.reefBand)) : 0;
+      const rise = popup ? c.riseAt(f.s) : 1;
+      if (this.risePrimed && rise >= 0.985 && this.prevRise[i] < 0.985 && i % 2 === 0) surfacing++;
+      const inflate = smooth(0, 0.12, rise);
+      const lift = liftOf(rise);
+      const reefAmt = reefing && rise >= 1 ? 1 - clamp01((f.s - c.reefFront) / band) : 0;
       const eta = waveElevation(f.x, f.z, waveTime, waveHeight);
       const eta2 = waveElevation(f.x + f.tx * 0.6, f.z + f.tz * 0.6, waveTime, waveHeight);
-      const pitch = Math.atan2(eta2 - eta, 0.6);
+      const pitch = Math.atan2(eta2 - eta, 0.6) * lift;
       this.tmpQ.setFromAxisAngle(this.yAxis, -Math.atan2(f.tz, f.tx));
       this.pitchQ.setFromAxisAngle(this.zAxis, pitch);
       this.tmpQ.multiply(this.pitchQ);
-      const rise = popFront ? Math.max(0, 1 - (f.s - laidFrom) / 8) * 1.6 : 0;
-      this.tmpP.set(f.x, eta + 0.1 - reefAmt * 0.08 - rise, f.z);
-      this.tmpS.set(1, 1 - reefAmt * 0.15, 1);
+      const bed = f.floor + 0.24;
+      this.tmpP.set(f.x, bed + (eta + 0.1 - reefAmt * 0.08 - bed) * lift, f.z);
+      this.tmpS.set(1, (0.3 + 0.7 * inflate) * (1 - reefAmt * 0.15), 1.25 - 0.25 * inflate);
       this.tmpM.compose(this.tmpP, this.tmpQ, this.tmpS);
       this.floats.setMatrixAt(i, this.tmpM);
-      this.tmpC.copy(this.amber).lerp(this.reefed, reefAmt);
+      // A deflated tube reads dull; each float glows briefly as the inflation front fills it.
+      this.tmpC.copy(this.deflated).lerp(this.amber, inflate).lerp(this.reefed, reefAmt);
+      if (inflate > 0 && inflate < 1) this.tmpC.multiplyScalar(1 + 1.6 * inflate * (1 - inflate));
       this.floats.setColorAt(i, this.tmpC);
       if (f.connector && ci < this.connectors.count) {
-        this.tmpP.y = eta + 0.02;
+        this.tmpP.y -= 0.08;
+        this.tmpS.set(1, 1, 1);
         this.tmpM.compose(this.tmpP, this.tmpQ, this.tmpS);
         this.connectors.setMatrixAt(ci++, this.tmpM);
       }
     }
+    // White water where sections break the surface (a handful per frame; more means the run jumped, e.g. a pre-roll).
+    if (surfacing > 0 && surfacing <= 6) {
+      for (let i = 0; i < this.floatSlots.length; i += 2) {
+        const rise = c.riseAt(this.floatSlots[i].s);
+        if (rise >= 0.985 && this.prevRise[i] < 0.985) this.spawnFoam(this.floatSlots[i].x, this.floatSlots[i].z);
+      }
+    }
+    if (popup) for (let i = 0; i < this.floatSlots.length; i++) this.prevRise[i] = c.riseAt(this.floatSlots[i].s);
+    this.risePrimed = popup;
+    this.updateFoam(rdt, waveTime, waveHeight);
     for (; ci < this.connectors.count; ci++) {
       this.tmpM.makeScale(0, 0, 0);
       this.connectors.setMatrixAt(ci, this.tmpM);
@@ -454,12 +537,12 @@ export class CurtainSystem {
     if (this.floats.instanceColor) this.floats.instanceColor.needsUpdate = true;
     this.connectors.instanceMatrix.needsUpdate = true;
 
-    // Anchor buoys bob; only shown for the active layout once deployed or when previewing.
+    // Marker buoys bob; they come up with their section (pop-up) or are set as the curtain is laid (workboat).
     for (const b of this.buoys.children) {
       const a = b.userData.anchor as { x: number; z: number; s: number };
-      const laid = !stowed && a.s >= laidFrom - 1;
-      b.visible = laid;
-      b.position.y = waveElevation(a.x, a.z, waveTime, waveHeight) - 0.15;
+      const up = popup ? clamp01((c.riseAt(a.s) - 0.97) / 0.03) : !stowed && a.s >= laidFrom - 1 ? 1 : 0;
+      b.visible = up > 0;
+      b.position.y = waveElevation(a.x, a.z, waveTime, waveHeight) - 0.15 - (1 - up) * 1.6;
     }
     // Layout previews while stowed.
     this.previews.visible = stowed;
@@ -478,6 +561,37 @@ export class CurtainSystem {
       const pulse = 1 + 0.25 * Math.sin(SHARED.uTime.value * 5);
       this.reefMarker.scale.setScalar(pulse);
     }
+  }
+
+  private spawnFoam(x: number, z: number): void {
+    const k = this.foamNext;
+    this.foamNext = (k + 1) % FOAM;
+    this.foamX[k] = x;
+    this.foamZ[k] = z;
+    this.foamRot[k] = (x * 12.9898 + z * 78.233) % (Math.PI * 2);
+    this.foamAge[k] = 0;
+  }
+
+  /** Foam rings spread and fade on the water (additive: the instance colour is the intensity). */
+  private updateFoam(rdt: number, waveTime: number, waveHeight: number): void {
+    for (let k = 0; k < FOAM; k++) {
+      const age = (this.foamAge[k] = Math.min(FOAM_LIFE, this.foamAge[k] + rdt));
+      const t = age / FOAM_LIFE;
+      if (t >= 1) {
+        this.foam.setMatrixAt(k, this.tmpM.makeScale(0, 0, 0));
+        continue;
+      }
+      const x = this.foamX[k];
+      const z = this.foamZ[k];
+      const r = 1.6 + 3.4 * (1 - (1 - t) * (1 - t));
+      this.tmpP.set(x, waveElevation(x, z, waveTime, waveHeight) + 0.05, z);
+      this.tmpQ.setFromAxisAngle(this.yAxis, this.foamRot[k]);
+      this.tmpS.set(r, 1, r);
+      this.foam.setMatrixAt(k, this.tmpM.compose(this.tmpP, this.tmpQ, this.tmpS));
+      this.foam.setColorAt(k, this.tmpC.setScalar(1.05 * (1 - t) * (1 - t)));
+    }
+    this.foam.instanceMatrix.needsUpdate = true;
+    if (this.foam.instanceColor) this.foam.instanceColor.needsUpdate = true;
   }
 
   /** Pickable meshes. */

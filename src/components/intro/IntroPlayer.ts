@@ -19,8 +19,8 @@ import { MapLabels, type Box } from './mapLabels';
 export type IntroMode = 'play' | 'frozen' | 'reduced';
 
 const SMALL_SCREEN = 600;
-/** Pre-roll chunk budget while the map animates (ms). */
-const PREROLL_SLICE_ANIMATING = 7;
+/** Pre-roll chunk cap while the map animates (ms); chunks then run only in idle time between frames. */
+const PREROLL_SLICE_ANIMATING = 8;
 /** Real-time warm-up of the 3D view behind the map (shader compile, shadow map) before it is suspended. */
 const WARMUP_MS = 420;
 /** Speed-up applied to the rest of the sequence after a skip. */
@@ -176,19 +176,21 @@ export class IntroPlayer {
   }
 
   /**
-   * Keep pre-roll chunks short only while the map is animating on screen. In a
-   * hidden tab timers are throttled and nothing animates, so the normal budget
-   * lets initialisation finish.
+   * While the map animates on screen, the pre-roll runs in short chunks in the idle time
+   * between frames, so it never delays one. In a hidden tab timers are throttled and
+   * nothing animates, so the normal budget lets initialisation finish.
    */
   private updateSlice(): void {
     const animating = this.mode === 'play' && !this.finished && document.visibilityState === 'visible';
     controller.preRollSliceMs = animating ? PREROLL_SLICE_ANIMATING : this.savedSlice;
+    controller.preRollIdle = animating;
   }
 
   /** Undo every side effect on the app (also on an early unmount). */
   private restore(resetCamera: boolean): void {
     const sm = getScene();
     controller.preRollSliceMs = this.savedSlice;
+    controller.preRollIdle = false;
     sm.renderSuspended = false;
     sm.controls.maxDistance = this.savedMaxDistance || sm.controls.maxDistance;
     if (this.savedPaused !== null) {

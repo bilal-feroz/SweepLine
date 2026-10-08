@@ -86,8 +86,8 @@ export class Water {
         uFlowDim: SHARED.uFlowDim,
         uEnv: { value: envCube },
         uNormalMap: { value: normalMap },
-        uShallow: { value: new THREE.Color(0.035, 0.4, 0.42) },
-        uDeep: { value: new THREE.Color(0.006, 0.07, 0.13) },
+        uShallow: { value: new THREE.Color(0.02, 0.52, 0.5) },
+        uDeep: { value: new THREE.Color(0.004, 0.095, 0.2) },
         uCenter: { value: CENTER },
       },
       vertexShader: /* glsl */ `
@@ -147,8 +147,8 @@ export class Water {
             float depth = seabedDepth(vWorld.xz);
             vec3 body = mix(uShallow, uDeep, smoothstep(2.0, 14.0, depth));
             float crest = clamp(vElev / max(uWaveAmp, 0.05), 0.0, 1.0);
-            vec3 sss = vec3(0.05, 0.32, 0.30) * pow(max(dot(V, -uSunDir) * 0.5 + 0.5, 0.0), 3.0) * crest * 0.35;
-            vec3 col = body * 0.6 + sss;
+            vec3 sss = vec3(0.04, 0.42, 0.36) * pow(max(dot(V, -uSunDir) * 0.5 + 0.5, 0.0), 3.0) * crest * 0.35;
+            vec3 col = body * 0.68 + sss;
             col = mix(col, refl * 0.92, F) + uSunColor * glint * (1.0 - uFlowDim * 0.6);
             // Wave-break foam along the revetment waterline.
             float shore = smoothstep(-52.5, -56.8, vWorld.z) * step(-58.5, vWorld.z);

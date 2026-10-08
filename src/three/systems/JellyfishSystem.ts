@@ -98,7 +98,7 @@ export function jellyShader(map: THREE.Texture | null): THREE.ShaderMaterial {
         float wrap = max(dot(N, L) * 0.5 + 0.5, 0.0);
         float back = pow(max(dot(V, -L), 0.0), 3.0);
         float tint = vData.y;
-        vec3 hue = tint < 0.34 ? vec3(0.55, 0.72, 0.98) : tint < 0.68 ? vec3(0.78, 0.87, 0.98) : vec3(0.5, 0.88, 0.95);
+        vec3 hue = tint < 0.34 ? vec3(0.5, 0.68, 1.0) : tint < 0.68 ? vec3(0.8, 0.72, 1.0) : vec3(0.42, 0.9, 1.0);
         vec3 base = mix(vec3(0.74, 0.82, 0.92), hue, 0.6);
         if (uHasMap > 0.5) base = mix(base, texture2D(uMap, vUv).rgb, 0.65);
         vec3 col;

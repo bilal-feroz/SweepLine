@@ -39,6 +39,7 @@ export function CurrentCard() {
 }
 
 const OVERVIEW_PRESETS: Array<{ key: CameraPreset; label: string }> = [
+  { key: 'release', label: 'Release Point' },
   { key: 'top', label: 'Top View' },
   { key: 'aerial', label: 'Perspective' },
   { key: 'underwater', label: 'Underwater' },

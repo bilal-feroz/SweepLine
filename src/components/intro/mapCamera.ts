@@ -100,54 +100,32 @@ export const fadeOut = (v: number, a: number, b: number) => 1 - smoothstep(ramp(
 export const band = (v: number, a0: number, a1: number, b0: number, b1: number) => fadeIn(v, a0, a1) * fadeOut(v, b0, b1);
 
 /**
- * Monotone cubic interpolation (Fritsch–Carlson) through (t, v) keys with
- * optional end slopes. C1-continuous and free of overshoot, so a camera never
- * backs up between keyframes.
+ * Smooth single-peaked easing 0 → 1: the regularised incomplete beta function I_x(a, b).
+ * Its slope ∝ x^(a−1)·(1−x)^(b−1) starts from rest, peaks once at x = (a−1)/(a+b−2) and
+ * returns to rest (with zero acceleration when a, b > 2). Tabulated once by Simpson's rule
+ * and evaluated with cubic Hermite segments on the exact slope, so speed stays continuous.
  */
-export function monotoneCurve(ts: number[], vs: number[], startSlope?: number, endSlope?: number): (t: number) => number {
-  const n = ts.length;
-  const h: number[] = [];
-  const d: number[] = [];
-  for (let i = 0; i < n - 1; i++) {
-    h.push(ts[i + 1] - ts[i]);
-    d.push((vs[i + 1] - vs[i]) / h[i]);
+export function betaEase(a: number, b: number, samples = 1024): (x: number) => number {
+  const slope = (x: number) => Math.pow(x, a - 1) * Math.pow(1 - x, b - 1);
+  const n = samples;
+  const cdf = new Float64Array(n + 1);
+  for (let i = 1; i <= n; i++) {
+    const x0 = (i - 1) / n;
+    const x1 = i / n;
+    cdf[i] = cdf[i - 1] + (slope(x0) + 4 * slope((x0 + x1) / 2) + slope(x1)) / (6 * n);
   }
-  const m: number[] = new Array(n).fill(0);
-  m[0] = startSlope ?? d[0];
-  m[n - 1] = endSlope ?? d[n - 2];
-  for (let i = 1; i < n - 1; i++) {
-    if (d[i - 1] * d[i] <= 0) m[i] = 0;
-    else {
-      // Weighted harmonic mean (Fritsch–Butland), keeps the curve monotone.
-      const w1 = 2 * h[i] + h[i - 1];
-      const w2 = h[i] + 2 * h[i - 1];
-      m[i] = (w1 + w2) / (w1 / d[i - 1] + w2 / d[i]);
-    }
-  }
-  for (let i = 0; i < n - 1; i++) {
-    if (d[i] === 0) {
-      m[i] = 0;
-      m[i + 1] = 0;
-      continue;
-    }
-    const a = m[i] / d[i];
-    const b = m[i + 1] / d[i];
-    const r = a * a + b * b;
-    if (r > 9) {
-      const tau = 3 / Math.sqrt(r);
-      m[i] = tau * a * d[i];
-      m[i + 1] = tau * b * d[i];
-    }
-  }
-  return (t: number) => {
-    if (t <= ts[0]) return vs[0];
-    if (t >= ts[n - 1]) return vs[n - 1];
-    let i = 0;
-    while (i < n - 2 && t > ts[i + 1]) i++;
-    const u = (t - ts[i]) / h[i];
+  const total = cdf[n];
+  return (x: number) => {
+    if (x <= 0) return 0;
+    if (x >= 1) return 1;
+    const f = x * n;
+    const i = Math.min(n - 1, Math.floor(f));
+    const u = f - i;
     const u2 = u * u;
     const u3 = u2 * u;
-    return (2 * u3 - 3 * u2 + 1) * vs[i] + (u3 - 2 * u2 + u) * h[i] * m[i] + (-2 * u3 + 3 * u2) * vs[i + 1] + (u3 - u2) * h[i] * m[i + 1];
+    const m0 = slope(i / n) / n;
+    const m1 = slope((i + 1) / n) / n;
+    return ((2 * u3 - 3 * u2 + 1) * cdf[i] + (u3 - 2 * u2 + u) * m0 + (-2 * u3 + 3 * u2) * cdf[i + 1] + (u3 - u2) * m1) / total;
   };
 }
 

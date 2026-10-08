@@ -7,15 +7,37 @@ import type { CurtainMode, DeployMode } from './types';
 const C = ASSUMPTIONS.curtain;
 const D = ASSUMPTIONS.deploy;
 
+/** Seabed depth under each segment's midpoint (m). */
+function floorDepths(layout: CurtainLayout): Float32Array {
+  const out = new Float32Array(layout.segCount);
+  for (let k = 0; k < layout.segCount; k++) out[k] = Math.max(0.5, seabedDepth(layout.midX[k], layout.midZ[k]));
+  return out;
+}
+
+/**
+ * Seconds from a pop-up deployment command until every section has surfaced: valve checks,
+ * the inflation front running to the upstream anchor, and each section's ascent.
+ */
+export function popUpDuration(layout: CurtainLayout): number {
+  let t = 0;
+  for (let k = 0; k < layout.segCount; k++) {
+    const s = layout.s0[k] + layout.len[k] * 0.5;
+    t = Math.max(t, (layout.length - s) / D.popUpSpeed + seabedDepth(layout.midX[k], layout.midZ[k]) / D.riseSpeed);
+  }
+  return D.popUpDelay + t;
+}
+
 /**
  * Physical state of the SweepLine guide curtain.
  *
- * Deployment works from the recovery throat toward the prepared upstream anchor:
- * a pop-up curtain rises from the seabed as its float line inflates, or a
- * workboat lays it from the throat-side reel. Reefing always starts at the
- * UPSTREAM end, so new bloom traffic stops entering first while traffic already
- * on the curtain continues to the throat. The built-in water jets run on every
- * guiding segment.
+ * Deployment works from the recovery throat toward the prepared upstream anchor.
+ * A pop-up curtain lies stowed on the seabed; after the valve checks an inflation
+ * front runs along its float line and each inflated section rises through the
+ * water column at a finite speed, its skirt hanging beneath it, and only guides
+ * once it is at the surface. A workboat instead lays it from the throat-side reel.
+ * Reefing always starts at the UPSTREAM end, so new bloom traffic stops entering
+ * first while traffic already on the curtain continues to the throat. The
+ * built-in water jets run on every guiding segment.
  */
 export class CurtainState {
   layout: CurtainLayout;
@@ -45,6 +67,12 @@ export class CurtainState {
   segReefing: Uint8Array;
   /** Skirt depth fraction 0..1 per segment (for rendering). */
   segDrop: Float32Array;
+  /** Float-line height per segment: 0 lying on the seabed (stowed), 1 at the surface. */
+  segRise: Float32Array;
+  /** Seabed depth under each segment (m). */
+  private segFloor: Float32Array;
+  /** Length-weighted mean rise: 0 stowed on the seabed, 1 with every section at the surface. */
+  meanRise = 0;
   activeCount = 0;
   /** Normal component of the current against the curtain (m/s). */
   normalVelocity = 0;
@@ -60,6 +88,8 @@ export class CurtainState {
     this.segActive = new Uint8Array(layout.segCount);
     this.segReefing = new Uint8Array(layout.segCount);
     this.segDrop = new Float32Array(layout.segCount);
+    this.segRise = new Float32Array(layout.segCount);
+    this.segFloor = floorDepths(layout);
   }
 
   setLayout(layout: CurtainLayout): boolean {
@@ -69,6 +99,8 @@ export class CurtainState {
     this.segActive = new Uint8Array(layout.segCount);
     this.segReefing = new Uint8Array(layout.segCount);
     this.segDrop = new Float32Array(layout.segCount);
+    this.segRise = new Float32Array(layout.segCount);
+    this.segFloor = floorDepths(layout);
     return true;
   }
 
@@ -81,9 +113,9 @@ export class CurtainState {
     return Math.min(C.skirtDepthMax, this.layout.minSeabedDepth - C.seabedClearance);
   }
 
-  /** Fraction of the curtain laid on the water. */
+  /** Fraction of the curtain deployed: risen (pop-up) or laid on the water (workboat). */
   get deployedFraction(): number {
-    return Math.min(1, this.deployFront / this.layout.length);
+    return this.deployMode === 'popup' ? this.meanRise : Math.min(1, this.deployFront / this.layout.length);
   }
 
   /** Fraction of the curtain reefed. */
@@ -138,10 +170,16 @@ export class CurtainState {
           this.deployDelay = Math.max(0, this.deployDelay - dt);
           break;
         }
-        this.deployFront += this.deployRate * dt;
-        if (this.deployFront >= L + C.skirtDropLag + 3) {
-          this.deployFront = L;
-          this.mode = 'DEPLOYED';
+        if (this.deployMode === 'popup') {
+          // Deployed once the inflation front has reached the anchor and every section has surfaced.
+          this.deployFront = Math.min(L, this.deployFront + this.deployRate * dt);
+          if (this.deployFront >= L && this.meanRise >= 1) this.mode = 'DEPLOYED';
+        } else {
+          this.deployFront += this.deployRate * dt;
+          if (this.deployFront >= L + C.skirtDropLag + 3) {
+            this.deployFront = L;
+            this.mode = 'DEPLOYED';
+          }
         }
         break;
       case 'REEFING':
@@ -154,7 +192,8 @@ export class CurtainState {
         break;
       case 'STOWING':
         this.deployFront = Math.max(0, this.deployFront - C.stowSpeed * dt);
-        if (this.deployFront <= 0) {
+        // A pop-up curtain is stowed once every vented section has settled back on the seabed.
+        if (this.deployFront <= 0 && (this.deployMode !== 'popup' || this.meanRise <= 0)) {
           this.mode = 'STOWED';
           this.reefFront = 0;
         }
@@ -178,18 +217,33 @@ export class CurtainState {
     const lay = this.layout;
     const laidFrom = L - this.deployFront;
     const stowed = this.mode === 'STOWED';
+    const popup = this.deployMode === 'popup';
     const reefing = this.mode === 'REEFING' || this.mode === 'REEFED' || this.mode === 'UNREEFING';
     let active = 0;
+    let risen = 0;
     for (let k = 0; k < lay.segCount; k++) {
       const s = lay.s0[k] + lay.len[k] * 0.5;
-      if (stowed || s < laidFrom) {
+      const laid = !stowed && s >= laidFrom;
+      // Pop-up sections rise (or, vented, sink) at a finite speed; a workboat lays them at the surface.
+      let rise = laid ? 1 : 0;
+      if (popup) {
+        rise = this.segRise[k];
+        const goal = laid ? 1 : 0;
+        const step = ((goal > rise ? D.riseSpeed : D.sinkSpeed) * dt) / this.segFloor[k];
+        rise = Math.abs(goal - rise) <= step ? goal : rise + Math.sign(goal - rise) * step;
+      }
+      this.segRise[k] = rise;
+      risen += rise * lay.len[k];
+      // A section guides only with its float line at the surface.
+      if (!laid || rise < 1) {
         this.segSkirt[k] = 0;
         this.segActive[k] = 0;
         this.segReefing[k] = 0;
         this.segDrop[k] = 0;
         continue;
       }
-      const drop = this.mode === 'DEPLOYING' ? Math.min(1, Math.max(0, (s - laidFrom - 3) / C.skirtDropLag)) : 1;
+      // A pop-up skirt hangs beneath its float on the way up, so it is at depth on surfacing.
+      const drop = this.mode === 'DEPLOYING' && !popup ? Math.min(1, Math.max(0, (s - laidFrom - 3) / C.skirtDropLag)) : 1;
       const reef = reefing ? Math.min(1, Math.max(0, (s - this.reefFront) / C.reefBand)) : 1;
       const frac = drop * reef;
       this.segDrop[k] = frac;
@@ -202,12 +256,26 @@ export class CurtainState {
       active += on;
     }
     this.activeCount = active;
+    this.meanRise = Math.min(1, risen / L);
 
     // Jets ramp toward the commanded output while any segment is guiding.
     const jetGoal = active > 0 ? this.jetTarget : 0;
     const jetStep = dt / ASSUMPTIONS.jets.rampTime;
     const jd = jetGoal - this.jetOutput;
     this.jetOutput += Math.abs(jd) <= jetStep ? jd : Math.sign(jd) * jetStep;
+  }
+
+  /** Float-line rise of the segment at arc position s. */
+  riseAt(s: number): number {
+    const lay = this.layout;
+    let lo = 0;
+    let hi = lay.segCount - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (lay.s0[mid] <= s) lo = mid;
+      else hi = mid - 1;
+    }
+    return this.segRise[lo];
   }
 
   /** Minimum skirt–seabed clearance along the curtain for the current setpoint (m). */

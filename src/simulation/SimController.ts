@@ -155,6 +155,19 @@ const noFailures = (): Record<FailureKey, boolean> => ({
 /** Yield to the event loop between pre-roll chunks (timers keep running in background windows, unlike rAF). */
 const nextFrame = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
+type RequestIdle = (cb: (deadline: { timeRemaining(): number; didTimeout: boolean }) => void, opts?: { timeout?: number }) => number;
+
+/**
+ * Wait for idle time between frames and resolve with the budget (ms) it offers, capped at
+ * `cap`. Without requestIdleCallback, or when starved past the timeout, fall back to a
+ * timer yield and the full cap so the pre-roll always progresses.
+ */
+function idleBudget(cap: number): Promise<number> {
+  const ric = (globalThis as { requestIdleCallback?: RequestIdle }).requestIdleCallback;
+  if (!ric) return nextFrame().then(() => cap);
+  return new Promise((resolve) => ric((d) => resolve(d.didTimeout ? cap : Math.min(cap, d.timeRemaining() - 1)), { timeout: 60 }));
+}
+
 /**
  * Runtime controller. Owns the baseline and SweepLine engines (same seed, same
  * bloom), advances them in lock-step, runs the safety logic, records the
@@ -171,6 +184,8 @@ export class SimController {
   ready = false;
   /** Main-thread budget per pre-roll chunk (ms); lowered while an animation must stay smooth. */
   preRollSliceMs = 24;
+  /** Run pre-roll chunks only in idle time between frames (set while an animation must stay smooth). */
+  preRollIdle = false;
   scenario: Scenario | null = null;
   failures = noFailures();
   events: SimEvent[] = [];
@@ -269,14 +284,16 @@ export class SimController {
       this.loadingPublisher?.({ active: true, progress: 0, label: 'Pre-rolling simulation to steady operation' });
       while (this.sweepline.time < target) {
         if (token !== this.runToken) return;
+        const budget = this.preRollIdle ? await idleBudget(this.preRollSliceMs) : this.preRollSliceMs;
+        if (token !== this.runToken) return;
         const t0 = performance.now();
-        while (this.sweepline.time < target && performance.now() - t0 < this.preRollSliceMs) this.stepAll(h);
+        while (this.sweepline.time < target && performance.now() - t0 < budget) this.stepAll(h);
         this.loadingPublisher?.({
           active: true,
           progress: Math.min(1, this.sweepline.time / target),
           label: `Pre-rolling simulation · ${formatDuration(this.sweepline.time)} / ${formatDuration(target)}`,
         });
-        await nextFrame();
+        if (!this.preRollIdle) await nextFrame();
       }
     }
     if (token !== this.runToken) return;
