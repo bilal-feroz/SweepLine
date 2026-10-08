@@ -99,6 +99,35 @@ export function makeWaterNormalMap(size = 256): THREE.DataTexture {
   return dataTexture(heightToNormal(h, size, 2.2), size, false);
 }
 
+/** Rescale a field to the full 0..1 range. */
+function stretch(v: Float32Array): Float32Array {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const x of v) {
+    lo = Math.min(lo, x);
+    hi = Math.max(hi, x);
+  }
+  const k = 1 / Math.max(hi - lo, 1e-6);
+  return v.map((x) => (x - lo) * k);
+}
+
+/**
+ * Tileable white-water noise for foam break-up: R = patches, G = fine bubbles (full 0..1 range).
+ * Linear data (not colour).
+ */
+export function makeFoamNoise(size = 256): THREE.DataTexture {
+  const patches = stretch(fbm(size, [6, 12, 24], [0.5, 0.32, 0.18], 111));
+  const bubbles = stretch(fbm(size, [24, 48, 96], [0.45, 0.35, 0.2], 112));
+  const data = new Uint8Array(size * size * 4);
+  for (let k = 0; k < size * size; k++) {
+    data[k * 4] = patches[k] * 255;
+    data[k * 4 + 1] = Math.pow(bubbles[k], 1.4) * 255;
+    data[k * 4 + 2] = 0;
+    data[k * 4 + 3] = 255;
+  }
+  return dataTexture(data, size, false);
+}
+
 /** Seabed sand: albedo with ripples and mottling, plus matching normal map. */
 export function makeSandTextures(size = 512): { map: THREE.DataTexture; normal: THREE.DataTexture } {
   const n = fbm(size, [4, 8, 16, 32, 64], [0.35, 0.25, 0.18, 0.12, 0.1], 31);

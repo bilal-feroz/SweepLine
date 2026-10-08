@@ -42,10 +42,37 @@ export function waveElevation(x: number, z: number, t: number, hs: number): numb
   return e * a;
 }
 
-/** GLSL implementation (elevation + analytic slope) generated from the same constants. */
-export const WAVES_GLSL = /* glsl */ `
+/** Sea-state uniforms, declared once per shader whichever wave chunk comes first. */
+const WAVE_UNIFORMS_GLSL = /* glsl */ `
+#ifndef SL_WAVE_UNIFORMS
+#define SL_WAVE_UNIFORMS
 uniform float uWaveAmp;   // Hs / 2
 uniform float uWaveTime;
+#endif
+`;
+
+/**
+ * GLSL second derivatives of the same surface (hxx, hxz, hzz) — the curvature that focuses
+ * sunlight into caustics.
+ */
+export const WAVES_HESSIAN_GLSL = /* glsl */ `
+${WAVE_UNIFORMS_GLSL}
+vec3 slSwellHessian(vec2 p) {
+  vec3 h = vec3(0.0);
+${COMPONENTS.map(
+  (c) => `  {
+    vec2 k = vec2(${c.dx.toFixed(6)}, ${c.dz.toFixed(6)});
+    float ph = dot(k, p) - ${c.omega.toFixed(6)} * uWaveTime + ${c.phase.toFixed(4)};
+    h -= ${c.amp.toFixed(4)} * sin(ph) * vec3(k.x * k.x, k.x * k.y, k.y * k.y);
+  }`,
+).join('\n')}
+  return h * uWaveAmp;
+}
+`;
+
+/** GLSL implementation (elevation + analytic slope) generated from the same constants. */
+export const WAVES_GLSL = /* glsl */ `
+${WAVE_UNIFORMS_GLSL}
 float waveElevation(vec2 p, out vec2 slope) {
   float e = 0.0;
   slope = vec2(0.0);

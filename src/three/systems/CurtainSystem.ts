@@ -39,6 +39,9 @@ function skirtMaterial(ballast: boolean): THREE.ShaderMaterial {
       uHazeDensity: SHARED.uHazeDensity,
       uFlowDim: SHARED.uFlowDim,
       uCaustics: SHARED.uCaustics,
+      uCausticFocus: SHARED.uCausticFocus,
+      uSunRefr: SHARED.uSunRefr,
+      uRippleMap: SHARED.uRippleMap,
       uHighlight: { value: 0 },
       uModule: { value: ASSUMPTIONS.curtain.moduleLength },
     },
@@ -125,15 +128,33 @@ function skirtMaterial(ballast: boolean): THREE.ShaderMaterial {
         ${ballast ? '' : 'base = mix(base, vec3(0.7, 0.42, 0.06), (1.0 - smoothstep(0.0, 0.035, vV)) * 0.8);'}
         base = mix(base, vec3(0.16, 0.17, 0.17), vReef * 0.7);
         vec3 col = base * (diff * uSunColor * 0.9 + vec3(0.18, 0.26, 0.3));
+        float foot = length(fwidth(vWorld.xz));
         if (vWorld.y < 0.0) {
-          float c = slCaustic(vWorld.xz / 7.5) + 0.5 * slCaustic(vWorld.xz / 3.1 + 0.37);
-          col += base * uSunColor * c * uCaustics * 1.4 * exp(vWorld.y * 0.11);
+          // Caustics play over the sunlit face of the fabric.
+          float sunlit = max(dot(N, uSunDir), 0.0) * 0.63;
+          col += base * uSunColor * sunlit * (slCaustic(vWorld, foot) - 1.0) * uCaustics * 1.6;
         }
         col += vec3(0.1, 0.65, 0.75) * uHighlight * 0.25 * (0.6 + 0.4 * sin(vS * 0.5 - uTime * 2.0));
         col = slMedium(col, vWorld);
         gl_FragColor = vec4(col, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
+      }
+    `,
+    side: THREE.DoubleSide,
+  });
+}
+
+/** Shadow-map pass for the GPU-displaced skirt: same vertex shader and uniforms, depth only. */
+function skirtDepthMaterial(src: THREE.ShaderMaterial): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: src.uniforms,
+    vertexShader: src.vertexShader,
+    fragmentShader: /* glsl */ `
+      varying float vLaid;
+      void main() {
+        if (vLaid < 0.5) discard;
+        gl_FragColor = vec4(1.0);
       }
     `,
     side: THREE.DoubleSide,
@@ -166,6 +187,7 @@ export class CurtainSystem {
   private skirt!: THREE.Mesh;
   private ballast!: THREE.Mesh;
   private readonly skirtMat = skirtMaterial(false);
+  private readonly skirtDepth = skirtDepthMaterial(this.skirtMat);
   private readonly ballastMat = skirtMaterial(true);
   private columnTex!: THREE.DataTexture;
   private columnData!: Uint8Array;
@@ -305,6 +327,9 @@ export class CurtainSystem {
     this.skirt.frustumCulled = false;
     this.skirt.userData.pick = 'curtain';
     this.skirt.name = 'curtain-skirt';
+    // The skirt shades the seabed behind it (and cuts a gap in the caustics there).
+    this.skirt.castShadow = true;
+    this.skirt.customDepthMaterial = this.skirtDepth;
 
     // Weighted lower edge: a small tube following the skirt's bottom edge.
     const sides = 6;
@@ -366,6 +391,7 @@ export class CurtainSystem {
     this.floats = new THREE.InstancedMesh(floatGeo, this.floatMat, this.floatSlots.length);
     this.floats.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.floats.frustumCulled = false;
+    this.floats.castShadow = true;
     this.floats.userData.pick = 'curtain';
     for (let i = 0; i < this.floatSlots.length; i++) this.floats.setColorAt(i, this.amber);
     const conGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.5, 14).rotateZ(Math.PI / 2);

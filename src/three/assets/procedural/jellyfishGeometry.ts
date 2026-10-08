@@ -6,8 +6,9 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
  * 1.0 bell diameter so instances are scaled by true bell size (0.30–0.45 m).
  *
  * Anatomy: dense hemispherical bell with fine marginal lappets and no marginal
- * tentacles; eight frilled oral arms hanging below. Vertex attributes drive the
- * shader animation:
+ * tentacles; eight short, thick oral arms clustered beneath it, each lumpy with
+ * frilled mouth folds (the "cauliflower" mass seen in photos). Vertex attributes
+ * drive the shader animation:
  *   aPart — 0 exumbrella, 0.25 subumbrella, 1 oral arm
  *   aT    — bell: 0 apex → 1 margin; arm: 0 root → 1 tip
  *   aAng  — angular position (radians)
@@ -22,8 +23,8 @@ export interface JellyLod {
   inner: boolean;
 }
 
-export const NEAR_LOD: JellyLod = { thetaSegs: 48, bellRings: 12, lappets: 24, arms: 8, armRings: 14, armSides: 8, inner: true };
-export const FAR_LOD: JellyLod = { thetaSegs: 18, bellRings: 6, lappets: 0, arms: 4, armRings: 5, armSides: 5, inner: false };
+export const NEAR_LOD: JellyLod = { thetaSegs: 48, bellRings: 12, lappets: 24, arms: 8, armRings: 16, armSides: 10, inner: true };
+export const FAR_LOD: JellyLod = { thetaSegs: 18, bellRings: 6, lappets: 0, arms: 4, armRings: 5, armSides: 6, inner: false };
 
 const BELL_R = 0.5;
 const BELL_H = 0.43;
@@ -105,22 +106,33 @@ function buildArm(lod: JellyLod, a: number, armIndex: number): THREE.BufferGeome
   const part = new Float32Array(cols * rows).fill(1);
   const tt = new Float32Array(cols * rows);
   const ang = new Float32Array(cols * rows).fill(a);
-  const len = 0.5 + 0.08 * Math.sin(armIndex * 2.3);
+  // Short and thick: about the bell's height, rooted together under the bell and flaring a little.
+  const len = 0.4 + 0.05 * Math.sin(armIndex * 2.3);
   const frill = lod.armSides >= 8;
+  const smooth = THREE.MathUtils.smoothstep;
   let k = 0;
   for (let j = 0; j < rows; j++) {
     const t = j / armRings;
-    const spread = 0.07 + 0.16 * Math.sin(t * Math.PI * 0.75);
+    const spread = 0.045 + 0.085 * Math.sin(Math.min(1, t * 1.25) * Math.PI * 0.6);
     const cx = Math.cos(a) * spread;
     const cz = Math.sin(a) * spread;
-    const cy = -0.06 - len * t;
-    // Fused upper column, frilled lobes below, tapering tips.
-    let radius = 0.085 * (1 - 0.55 * t) + 0.05 * Math.sin(Math.min(1, t * 1.6) * Math.PI) * (t > 0.2 ? 1 : t / 0.2);
-    if (t > 0.8) radius *= 1 - 1.6 * (t - 0.8);
+    const cy = -0.05 - len * t;
+    // Thick fused root, swelling frilled body, rounded closed tip.
+    let radius = 0.06 + 0.055 * Math.sin(Math.min(1, t * 1.35) * Math.PI);
+    if (t > 0.84) radius *= Math.cos(((t - 0.84) / 0.16) * Math.PI * 0.5);
     for (let i = 0; i < cols; i++) {
       const psi = (i / armSides) * Math.PI * 2;
       let r = radius;
-      if (frill) r *= 1 + 0.42 * Math.sin(psi * 4 + t * 13 + armIndex) * (0.35 + 0.65 * Math.sin(t * Math.PI));
+      if (frill) {
+        // Cauliflower mouth folds: lumps at three scales, strongest mid-arm, calm at the root.
+        const lump =
+          0.5 * Math.sin(psi * 5 + t * 19 + armIndex * 1.7) * Math.sin(t * 27 + psi * 2 + armIndex) +
+          0.3 * Math.sin(psi * 9 - t * 31 + armIndex * 0.9) +
+          0.2 * Math.sin(psi * 13 + t * 47);
+        r *= 1 + 0.45 * lump * smooth(t, 0.08, 0.3) * (1 - 0.5 * smooth(t, 0.85, 1));
+      } else {
+        r *= 1.12;
+      }
       // Cross-section frame: radial (outward) and tangential directions around the bell axis.
       const ox = Math.cos(a) * Math.cos(psi) * r - Math.sin(a) * Math.sin(psi) * r;
       const oz = Math.sin(a) * Math.cos(psi) * r + Math.cos(a) * Math.sin(psi) * r;

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { S_FREE_DRIFT, S_INACTIVE, S_INTAKE_CONTACT, S_TRANSFERRED, S_UNDER_SKIRT } from '../../simulation/Agent';
 import type { SimulationEngine } from '../../simulation/SimulationEngine';
-import { MEDIUM_GLSL, SHARED } from '../environment/shaderChunks';
+import { CAUSTIC_GLSL, MEDIUM_GLSL, SHARED } from '../environment/shaderChunks';
 
 /** Distance-based legibility scaling: true scale up close, enlarged at aerial distances. */
 export const LEGIBILITY = { start: 12, perMetre: 1 / 15, max: 11 };
@@ -23,6 +23,12 @@ export function jellyShader(map: THREE.Texture | null): THREE.ShaderMaterial {
       uStateColors: { value: 0 },
       uMap: { value: map },
       uHasMap: { value: map ? 1 : 0 },
+      uCaustics: SHARED.uCaustics,
+      uCausticFocus: SHARED.uCausticFocus,
+      uSunRefr: SHARED.uSunRefr,
+      uRippleMap: SHARED.uRippleMap,
+      uWaveAmp: SHARED.uWaveAmp,
+      uWaveTime: SHARED.uWaveTime,
     },
     vertexShader: /* glsl */ `
       attribute vec4 aData;   // phase, tint, alpha, state (+16 when selected)
@@ -37,6 +43,7 @@ export function jellyShader(map: THREE.Texture | null): THREE.ShaderMaterial {
       varying float vT;
       varying vec4 vData;
       varying vec2 vUv;
+      varying float vAng;
       void main() {
         float ph = aData.x * 6.2831853 + uTime * 4.0;
         float c = pow(0.5 + 0.5 * sin(ph), 2.0);
@@ -60,6 +67,7 @@ export function jellyShader(map: THREE.Texture | null): THREE.ShaderMaterial {
         vT = aT;
         vData = aData;
         vUv = uv;
+        vAng = aAng;
         gl_Position = projectionMatrix * mv;
       }
     `,
@@ -76,7 +84,19 @@ export function jellyShader(map: THREE.Texture | null): THREE.ShaderMaterial {
       varying float vT;
       varying vec4 vData;
       varying vec2 vUv;
+      varying float vAng;
       ${MEDIUM_GLSL}
+      ${CAUSTIC_GLSL}
+      // Catostylus mosaicus colour forms: mostly blue, some creamy white, a few brown.
+      void morph(float tint, out vec3 bell, out vec3 band, out vec3 arm) {
+        if (tint < 0.62) {
+          bell = vec3(0.4, 0.6, 0.98); band = vec3(0.1, 0.28, 0.86); arm = vec3(0.7, 0.8, 0.96);
+        } else if (tint < 0.9) {
+          bell = vec3(0.93, 0.87, 0.74); band = vec3(0.8, 0.68, 0.5); arm = vec3(0.96, 0.92, 0.82);
+        } else {
+          bell = vec3(0.7, 0.52, 0.33); band = vec3(0.46, 0.31, 0.18); arm = vec3(0.84, 0.7, 0.52);
+        }
+      }
       vec3 stateColor(float s) {
         if (s < 1.5) return vec3(0.75, 0.86, 1.0);       // approaching
         if (s < 2.5) return vec3(0.15, 0.85, 0.95);      // guided
@@ -96,27 +116,47 @@ export function jellyShader(map: THREE.Texture | null): THREE.ShaderMaterial {
         float NdV = abs(dot(N, V));
         float rim = pow(1.0 - NdV, 2.2);
         float wrap = max(dot(N, L) * 0.5 + 0.5, 0.0);
-        float back = pow(max(dot(V, -L), 0.0), 3.0);
-        float tint = vData.y;
-        vec3 hue = tint < 0.34 ? vec3(0.5, 0.68, 1.0) : tint < 0.68 ? vec3(0.8, 0.72, 1.0) : vec3(0.42, 0.9, 1.0);
-        vec3 base = mix(vec3(0.74, 0.82, 0.92), hue, 0.6);
-        if (uHasMap > 0.5) base = mix(base, texture2D(uMap, vUv).rgb, 0.65);
+        float foot = length(fwidth(vWorld.xz));
+        vec3 bellC;
+        vec3 bandC;
+        vec3 armC;
+        morph(vData.y, bellC, bandC, armC);
+        bellC *= 0.9 + 0.2 * fract(vData.y * 7.31);
+        if (uHasMap > 0.5) bellC = mix(bellC, texture2D(uMap, vUv).rgb, 0.65);
+        // Light through the body (fast subsurface scattering): thin tissue glows against the sun.
+        vec3 Lt = normalize(L + N * 0.35);
+        float through = pow(max(dot(V, -Lt), 0.0), 3.0);
+        vec3 base;
         vec3 col;
         float alpha;
         if (vPart < 0.6) {
-          // Fine granular "mosaic" speckle of the exumbrella.
-          vec2 g = vUv * vec2(56.0, 20.0);
-          float speck = smoothstep(0.32, 0.0, length(fract(g) - 0.5)) * (1.0 - vT * 0.6);
-          col = base * (0.26 + wrap * uSunColor * 0.42) + base * back * 0.35;
-          col += speck * vec3(0.1, 0.12, 0.18);
-          col += (1.0 - vT) * vec3(0.05, 0.07, 0.15);
-          col += rim * vec3(0.4, 0.58, 0.8) * 0.45;
-          alpha = (vPart > 0.1 ? 0.16 : 0.22) + 0.42 * rim;
+          // Exumbrella: the fine granular "mosaic", sixteen radial canals toward the margin, and
+          // a deeper-coloured band at the rim; the thick crown passes less light than the margin.
+          vec2 g = vUv * vec2(64.0, 22.0);
+          float speck = smoothstep(0.34, 0.0, length(fract(g) - 0.5)) * (1.0 - vT * 0.5);
+          float canal = pow(abs(sin(vAng * 8.0)), 24.0) * smoothstep(0.35, 0.9, vT);
+          float band = smoothstep(0.7, 0.96, vT);
+          base = mix(bellC, bandC, band * 0.75);
+          float thin = 0.25 + 0.75 * vT;
+          col = base * (0.24 + wrap * uSunColor * 0.42);
+          col += base * uSunColor * through * (0.15 + 0.45 * thin);
+          col += speck * vec3(0.1, 0.12, 0.16) - canal * base * 0.18;
+          col += rim * mix(vec3(0.5, 0.7, 0.95), base, 0.4) * 0.45;
+          // Subumbrella: rings of swimming muscle.
+          if (vPart > 0.1) col *= 0.86 + 0.14 * (0.5 + 0.5 * sin(vT * 60.0));
+          // The subumbrella is seen through the bell: keep its silhouette soft.
+          alpha = vPart > 0.1 ? 0.12 + 0.18 * rim : 0.26 + 0.42 * rim + 0.08 * band;
         } else {
-          vec3 armC = mix(vec3(0.86, 0.88, 0.95), hue, 0.25);
-          col = armC * (0.3 + wrap * uSunColor * 0.42) + rim * vec3(0.3, 0.42, 0.55) * 0.35;
-          alpha = 0.4 + 0.2 * rim - 0.22 * vT;
+          // Oral arms: paler, frilled mouth folds, a little darker toward the tips.
+          float fold = 0.5 + 0.5 * sin(vUv.x * 62.83 + vT * 30.0);
+          base = mix(armC, bandC, smoothstep(0.55, 1.0, vT) * 0.35);
+          col = base * (0.3 + wrap * uSunColor * 0.45) * (0.85 + 0.15 * fold);
+          col += base * uSunColor * through * 0.35;
+          col += rim * vec3(0.3, 0.42, 0.55) * 0.35;
+          alpha = 0.5 + 0.2 * rim - 0.18 * vT;
         }
+        // Caustics flicker over the animal from the waves above.
+        if (vWorld.y < 0.0) col += base * uSunColor * wrap * (slCaustic(vWorld, foot) - 1.0) * uCaustics * 0.45;
         if (uStateColors > 0.5) {
           vec3 sc = stateColor(state);
           col = mix(col, sc * 0.9, 0.62);
@@ -133,9 +173,11 @@ export function jellyShader(map: THREE.Texture | null): THREE.ShaderMaterial {
         col = slMedium(col, vWorld);
         // Legibility at aerial distances: agents are already enlarged; give them a soft
         // self-lit edge so the bloom reads through the surface. Up close the look is physical.
+        // The glow keeps each animal's own colour, so the bloom reads blue (with cream and brown), not white.
         float far = smoothstep(30.0, 140.0, length(cameraPosition - vWorld)) * step(0.0, cameraPosition.y);
-        col += far * (vPart < 0.6 ? 0.58 : 0.3) * (0.55 + 0.45 * rim) * mix(vec3(0.62, 0.84, 1.0), hue, 0.3);
-        alpha = mix(alpha, min(1.0, alpha * 1.55 + 0.22), far);
+        vec3 glow = vPart < 0.6 ? mix(bellC, vec3(0.75, 0.86, 1.0), 0.25) : armC;
+        col += far * (vPart < 0.6 ? 0.46 : 0.24) * (0.55 + 0.45 * rim) * glow;
+        alpha = mix(alpha, min(1.0, alpha * 1.5 + 0.2), far);
         gl_FragColor = vec4(col, alpha * vData.z);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>

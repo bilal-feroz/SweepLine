@@ -13,7 +13,7 @@ import { adaptExternalJellyGeometry, buildJellyfishGeometry, FAR_LOD, NEAR_LOD }
 import { buildWorkboat } from './assets/procedural/workboat';
 import { CameraRig, presetPose, type CameraPreset } from './cameras/CameraRig';
 import { buildCoast } from './environment/Coast';
-import { SCENE_TONE_MAPPING } from './environment/grade';
+import { SCENE_EXPOSURE, SCENE_TONE_MAPPING } from './environment/grade';
 import { Seabed } from './environment/Seabed';
 import { SHARED } from './environment/shaderChunks';
 import { SkyDome } from './environment/Sky';
@@ -25,6 +25,7 @@ import { CurtainSystem } from './systems/CurtainSystem';
 import { JetSystem } from './systems/JetSystem';
 import { jellyShader, JellyfishSystem } from './systems/JellyfishSystem';
 import { LabelSystem, type LabelViewport } from './systems/LabelSystem';
+import { PostPipeline, type ViewState } from './post/PostPipeline';
 import { iconSvg } from '../components/ui/icons';
 import { ReleaseSystem } from './systems/ReleaseSystem';
 import { TransferSystem } from './systems/TransferSystem';
@@ -87,11 +88,18 @@ export class SceneManager {
   private readonly raycaster = new THREE.Raycaster();
   private pointerDown: { x: number; y: number } | null = null;
   private shadowFrames = 0;
+  private shadowTimer = 0;
+  /** Compare state and displayed world the shadow map was last captured for. */
+  private shadowCompare = false;
+  private shadowWorld: EngineKind = 'sweepline';
   private realTime = 0;
   private lastMarkerSeq = -1;
   private readonly boatPos = new THREE.Vector3();
   private boatYaw = 0;
   private readonly tmpV = new THREE.Vector3();
+  private readonly tmpDir = new THREE.Vector3();
+  private readonly post: PostPipeline;
+  private readonly view: ViewState = { underwater: false, targetDistance: 100, pitchDeg: 30, focus: new THREE.Vector3() };
   readonly assets = new AssetLoader();
   /** Skip drawing (simulation visuals still update) — set while an opaque overlay covers the view. */
   renderSuspended = false;
@@ -105,8 +113,9 @@ export class SceneManager {
     this.pixelRatio = Math.min(window.devicePixelRatio || 1, 1.75);
     this.renderer.setPixelRatio(this.pixelRatio);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    // Applies only to the camera thumbnails drawn straight to the canvas; the main view is graded in post.
     this.renderer.toneMapping = SCENE_TONE_MAPPING;
-    this.renderer.toneMappingExposure = 1.02;
+    this.renderer.toneMappingExposure = SCENE_EXPOSURE;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.shadowMap.autoUpdate = false;
@@ -132,6 +141,8 @@ export class SceneManager {
     // ------------------------------------------------ lighting & sky
     this.sky = new SkyDome(this.renderer);
     this.scene.add(this.sky.mesh);
+    // Distant water and land fade into the sky's own horizon colour.
+    SHARED.uHazeColor.value.copy(this.sky.horizon);
     this.scene.environment = this.sky.envMap;
     this.scene.environmentIntensity = 0.6;
     this.sun = new THREE.DirectionalLight(0xffeed4, 2.65);
@@ -154,7 +165,7 @@ export class SceneManager {
 
     // ------------------------------------------------ environment
     this.water = new Water(this.sky.cubeTarget.texture);
-    this.scene.add(this.water.mesh);
+    this.scene.add(this.water.mesh, this.water.depthCap);
     this.scene.add(new Seabed().group);
     this.coast = buildCoast();
     this.scene.add(this.coast.group);
@@ -181,6 +192,11 @@ export class SceneManager {
     this.setupLabels();
     this.rig.snap('aerial', ctrl.sweepline.curtain!.layout);
     this.boatPos.set(this.transfer.throat.mx + 8, 0, this.transfer.throat.mz + 9);
+
+    // ------------------------------------------------ post-processing
+    this.post = new PostPipeline(this.renderer, this.scene, this.camera, this.sun);
+    this.water.backdropSource = () => this.post.sceneTarget;
+    this.post.beforeRender = (target) => this.water.prepare(this.renderer, target);
 
     // ------------------------------------------------ interaction
     const el = this.renderer.domElement;
@@ -603,34 +619,48 @@ export class SceneManager {
     this.rig.update(dt);
     if (!this.slot || this.renderSuspended) return;
 
-    // Static shadow map: refresh for the first few frames (and after asset swaps).
+    // Static shadow map: refresh for the first few frames (and after asset swaps), several times a
+    // second while the curtain moves (its skirt shades the seabed), and otherwise about once a second.
+    // The map is captured with the displayed world; in Compare always with the baseline, so the
+    // baseline half never shows shadows of an installation it does not have.
+    this.shadowTimer -= dt;
+    let refreshShadows = this.ui.compare !== this.shadowCompare || this.ui.displayed !== this.shadowWorld;
+    this.shadowCompare = this.ui.compare;
+    this.shadowWorld = this.ui.displayed;
     if (this.shadowFrames < 3) {
-      this.renderer.shadowMap.needsUpdate = true;
+      refreshShadows = true;
       this.shadowFrames++;
+    } else if (this.shadowTimer <= 0) {
+      refreshShadows = true;
+      const moving = c.mode === 'DEPLOYING' || c.mode === 'REEFING' || c.mode === 'UNREEFING' || c.mode === 'STOWING';
+      this.shadowTimer = moving ? 0.15 : 1.0;
     }
+    if (refreshShadows && !this.ui.compare) this.renderer.shadowMap.needsUpdate = true;
 
     this.renderThumbnails(dt, worlds);
 
     const underwater = this.configureForCamera(this.camera);
     this.labels.beginFrame();
-    const r = this.renderer;
+    this.post.configure(this.viewState(underwater));
     if (this.ui.compare) {
+      // Both halves share one size so the post-processing buffers are not reallocated every frame.
       const half = Math.floor(this.width / 2);
       this.labels.setCompact(half < 640);
       this.camera.aspect = half / this.height;
       this.camera.updateProjectionMatrix();
-      r.setScissorTest(true);
+      if (this.width !== half * 2) {
+        // An odd width leaves the centre column uncovered.
+        this.renderer.setRenderTarget(null);
+        this.renderer.clear();
+      }
       for (const [i, w] of (['baseline', 'sweepline'] as EngineKind[]).entries()) {
-        const x0 = i === 0 ? 0 : half;
-        const wd = i === 0 ? half : this.width - half;
+        const x0 = i === 0 ? 0 : this.width - half;
         this.setWorld(w);
         this.jellies[w].update(ctrl.engine(w), this.camera, true);
-        r.setViewport(x0, 0, wd, this.height);
-        r.setScissor(x0, 0, wd, this.height);
-        r.render(this.scene, this.camera);
-        this.labels.place(this.camera, i === 0 ? 'left' : 'right', x0, wd, this.height, underwater);
+        if (i === 0 && refreshShadows) this.renderer.shadowMap.needsUpdate = true;
+        this.post.render({ x: x0, y: 0, width: half, height: this.height }, dt, 0.5);
+        this.labels.place(this.camera, i === 0 ? 'left' : 'right', x0, half, this.height, underwater);
       }
-      r.setScissorTest(false);
     } else {
       const w = this.ui.displayed;
       // Compact, title-only labels keep the scene uncluttered.
@@ -639,8 +669,7 @@ export class SceneManager {
       this.camera.updateProjectionMatrix();
       this.setWorld(w);
       this.jellies[w].update(ctrl.engine(w), this.camera, true);
-      r.setViewport(0, 0, this.width, this.height);
-      r.render(this.scene, this.camera);
+      this.post.render({ x: 0, y: 0, width: this.width, height: this.height }, dt);
       this.labels.place(this.camera, w === 'sweepline' ? 'single' : 'base', 0, this.width, this.height, underwater);
     }
     this.labels.endFrame();
@@ -659,6 +688,19 @@ export class SceneManager {
         useApp.getState().setUI({ underwater, cameraDepth: depth, cameraHeading: heading });
       }
     }
+  }
+
+  /** Camera-dependent inputs for the post-processing chain. */
+  private viewState(underwater: boolean): ViewState {
+    const v = this.view;
+    const t = this.controls.target;
+    const p = this.camera.position;
+    v.underwater = underwater;
+    v.targetDistance = p.distanceTo(t);
+    const dir = this.camera.getWorldDirection(this.tmpDir);
+    v.pitchDeg = (Math.asin(Math.min(1, Math.max(-1, -dir.y))) * 180) / Math.PI;
+    v.focus.copy(t);
+    return v;
   }
 
   /** Collect the HUD overlays in the current viewport ([data-hud]) so labels avoid them. */

@@ -163,6 +163,58 @@ animation attributes automatically, so the pulse/arm-sway shader works on any mo
 
 ---
 
+## Rendering
+
+The 3D view renders in linear HDR into a 4× MSAA buffer and finishes in post-processing
+(`src/three/post/PostPipeline.ts`, [pmndrs/postprocessing](https://github.com/pmndrs/postprocessing)):
+
+```
+scene → ambient occlusion → above water: tilt-shift · bloom · grade · LUT · vignette
+                          → underwater:  light shafts + wobble → depth of field · bloom · grade · LUT · vignette
+                          → SMAA → canvas
+```
+
+- **Grade.** `GradeEffect` is the same ACES filmic curve + vibrance lift the scene always used
+  (`environment/grade.ts`); a small generated LUT (`post/lookLut.ts`) adds a gentle S-curve with
+  cool shadows and warm highlights. Swap in a colourist's `.cube` via postprocessing's `LUTCubeLoader`.
+- **Ambient occlusion.** [N8AO](https://github.com/N8python/n8ao) at half resolution. A depth-only
+  copy of the water surface (`Water.depthCap`) is drawn last, so contact shadows form at the water
+  line and nothing under the surface is darkened through it.
+- **Bloom** only picks up HDR highlights (sun glitter, beacons, jets); **tilt-shift** softens the
+  far coast in high oblique views only; **depth of field** is underwater only.
+- **Water.** Just before the surface draws, everything already rendered (seabed, skirt, bloom) is
+  copied with its depth (`Water.captureBackdrop`). The surface bends each view ray at the wavy
+  surface and samples that copy, so you see the seabed, the stowed curtain and the bloom through
+  moving water. Broken white water forms wherever the backdrop meets the surface (revetment,
+  floats, pontoon, piles), and the sun's glare breaks into glitter.
+- **Caustics** (`CAUSTIC_GLSL` in `environment/shaderChunks.ts`) are computed from the same waves
+  and ripple maps the surface is drawn with: the focusing of sunlight is the inverse determinant of
+  the refracted-ray map, so the pattern moves with the visible surface and strengthens with sea
+  state. They modulate direct sunlight only, so shadows — including the curtain's own shadow on the
+  seabed — carve them out. The skirt and floats cast shadows; the shadow map refreshes while the
+  curtain moves and about once a second otherwise (in Compare it is captured with the baseline
+  world so that half never shows an installation it does not have).
+- **Underwater light shafts** (`post/UnderwaterEffect.ts`) are ray-marched at half resolution
+  through the water column: wave-focused sunlight, absorbed on the way down and back, cut by the
+  shadow map behind the curtain and pontoon, with forward scattering toward the sun.
+- **Sky** (`environment/atmosphere.ts`, `environment/Sky.ts`): a physically based clear-sky model
+  (Rayleigh + dusty Mie scattering for hazy Gulf air, thin cirrus) baked once into the cube map
+  that serves the visible sky, the water reflections and image-based lighting. Its horizon colour
+  becomes the haze colour, so distant water fades into the actual sky. Haze thins with height, so
+  overhead views stay clear.
+- **Jellyfish** (`systems/JellyfishSystem.ts`, `assets/procedural/jellyfishGeometry.ts`): the
+  *Catostylus mosaicus* colour forms (mostly blue, some cream, a few brown), granular "mosaic" bell
+  with radial canals and a darker rim band, short thick frilly oral arms, light glowing through thin
+  tissue, and caustics playing over the bells. From the air their legibility glow keeps each
+  animal's colour.
+- **Pixel budget.** Above ~2.4 megapixels per frame (large high-DPI windows) the chain renders at
+  a reduced internal resolution and the final pass upsamples, keeping the GPU cost bounded.
+
+Camera thumbnails (`registerThumbnail`) are drawn straight to the canvas with the same grade
+applied by the renderer, without post-processing; the water falls back to partial transparency there.
+
+---
+
 ## Where things live
 
 ```
@@ -186,8 +238,10 @@ src/
     SimController.ts      Runtime: both engines in lock-step, timeline, events, failures, history, export
     seededRandom.ts       Deterministic RNG and stateless per-agent noise
   three/
-    SceneManager.ts       Renderer, scene graph, single + split (scissor) rendering, picking, thumbnails
-    environment/          Sky, ocean shader, seabed, coast & intake, underwater FX, shared light-transport shader chunks
+    SceneManager.ts       Renderer, scene graph, single + split (per-half viewport) rendering, picking, thumbnails
+    post/                 Post-processing chain (PostPipeline), scene grade, look LUT, underwater shafts
+    environment/          Sky + atmosphere model, ocean shader, seabed, coast & intake, underwater particulate,
+                          shared light-transport and caustics shader chunks
     systems/              JellyfishSystem, CurrentField, CurtainSystem, TransferSystem, ReleaseSystem, LabelSystem, Annotations
     cameras/              Camera presets and smooth transitions
     assets/               GLB loader + procedural fallbacks (jellyfish, rocks, workboat)
@@ -308,6 +362,18 @@ only — handy for slides).
 ## Performance notes
 
 Instanced jellyfish (two LODs, ~1–2k agents per world), shared materials, typed-array agent
-storage, a static shadow map, and React updates at ~8 Hz keep the app at 60 FPS on a typical
+storage, a mostly static shadow map, and React updates at ~8 Hz keep the app at 60 FPS on a typical
 modern laptop. Measured CPU+GPU frame cost on the development machine: ~6 ms single view,
 ~9 ms compare + Flow View.
+
+With the rendering upgrades, GPU time per frame on a laptop RTX 3050 at a 1414 × 774 view is
+about 5.4 ms above water (scene 3.3 ms, ambient occlusion 0.7 ms, grade/bloom/tilt-shift 1.0 ms,
+SMAA 0.3 ms) and about 6.7 ms underwater (light shafts 1.9 ms, depth of field + grade 1.7 ms).
+Larger views are held to the pixel budget described under [Rendering](#rendering).
+
+### Third-party rendering libraries
+
+| Package | Used for | Licence |
+| --- | --- | --- |
+| [`postprocessing`](https://github.com/pmndrs/postprocessing) | Effect composer, bloom, tilt-shift, depth of field, LUT, vignette, SMAA | Zlib |
+| [`n8ao`](https://github.com/N8python/n8ao) | Ambient occlusion | CC0 |
