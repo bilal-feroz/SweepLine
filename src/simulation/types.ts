@@ -55,7 +55,8 @@ export const DEFAULT_PARAMS: SimParams = {
   currentSpeed: 0.32,
   currentBearing: 112,
   waveHeight: 0.8,
-  skirtDepth: 3.0,
+  // Below the bloom's P90 depth with margin: the reference run keeps shore-side leaks to a few (npm run test:demo).
+  skirtDepth: 3.5,
   anchorAngle: 20,
   transferCapacity: 0.9,
   standbyEnabled: true,

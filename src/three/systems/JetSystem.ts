@@ -226,10 +226,10 @@ export class JetSystem {
       this.foot.setMatrixAt(i, this.m);
     }
 
-    // Nozzle heads on the float line, one per curtain module.
+    // Nozzle heads on the float line, one per curtain module, wherever that module is at the surface.
     let n = 0;
     for (const s of this.nozzleS) {
-      if (s < laidFrom) continue;
+      if (s < laidFrom || c.riseAt(s) < 1) continue;
       const f = pointAtArc(L, s);
       const eta = waveElevation(f.x, f.z, waveTime, waveHeight);
       this.p.set(f.x + f.nx * 0.42, eta + 0.08, f.z + f.nz * 0.42);

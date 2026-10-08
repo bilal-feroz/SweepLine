@@ -1,6 +1,8 @@
 import {
   AlertTriangle,
   Check,
+  ChevronDown,
+  ChevronUp,
   FileText,
   FlaskConical,
   Layers,
@@ -62,15 +64,19 @@ function response(s: SimSnapshot): { text: string; tone: Tone } {
 function HeadlineMetric({ value, label, tone }: { value: string; label: string; tone: string }) {
   return (
     <div className="min-w-0">
-      <div className={cn('num text-[30px] leading-none font-semibold tracking-tight', tone)}>{value}</div>
-      <div className="mt-1 text-[12.5px] leading-tight text-ink-2">{label}</div>
+      <div className={cn('num text-[22px] leading-none font-semibold tracking-tight', tone)}>{value}</div>
+      <div className="mt-1 text-[11.5px] leading-tight text-ink-2">{label}</div>
     </div>
   );
 }
 
-/** Situation → response → result, readable in a few seconds. */
+/**
+ * Situation → response → result, readable in a few seconds. Kept compact so it
+ * covers little of the scene, and collapsible to its two headline lines.
+ */
 export function LiveHeadline() {
   const s = useSnap();
+  const [collapsed, setCollapsed] = useState(false);
   if (!s) return null;
   const sit = situation(s);
   const res = response(s);
@@ -79,21 +85,35 @@ export function LiveHeadline() {
   const reduction = b.intakeContactPct !== null && sw.intakeContactPct !== null && b.intakeContactPct > 0 ? 1 - sw.intakeContactPct / b.intakeContactPct : null;
   const under = sw.underSkirtPct;
   return (
-    <div className="glass pointer-events-auto w-[500px] max-w-full !rounded-2xl px-5 py-4 shadow-2xl">
-      <div data-live-eyebrow className={cn('flex items-center gap-2 text-[12px] font-semibold tracking-[0.14em] uppercase', TONE_TEXT[sit.tone])}>
-        <span className={cn('h-2 w-2 animate-pulse-soft rounded-full', TONE_DOT[sit.tone])} />
+    <div className="glass pointer-events-auto relative w-[392px] max-w-full !rounded-xl px-4 py-3 shadow-xl">
+      <button
+        type="button"
+        onClick={() => setCollapsed((c) => !c)}
+        className="absolute top-2 right-2 inline-flex h-6 w-6 items-center justify-center rounded-md text-muted transition-colors hover:bg-white/5 hover:text-white"
+        title={collapsed ? 'Show results' : 'Collapse to the headline'}
+        aria-label={collapsed ? 'Show results' : 'Collapse to the headline'}
+        aria-expanded={!collapsed}
+      >
+        {collapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+      </button>
+      <div data-live-eyebrow className={cn('flex items-center gap-2 pr-6 text-[11px] font-semibold tracking-[0.14em] uppercase', TONE_TEXT[sit.tone])}>
+        <span className={cn('h-1.5 w-1.5 animate-pulse-soft rounded-full', TONE_DOT[sit.tone])} />
         {sit.text}
       </div>
-      <div className={cn('mt-1 text-[22px] leading-tight font-semibold tracking-tight', res.tone === 'cyan' ? 'text-white' : TONE_TEXT[res.tone])}>{res.text}</div>
-      <div className="mt-3.5 grid grid-cols-3 gap-4 border-t border-line pt-3.5">
-        <HeadlineMetric value={pct(sw.diversionEfficiency)} label="diverted" tone="text-cyan" />
-        <HeadlineMetric value={reduction === null ? '—' : pct(reduction)} label="fewer intake contacts" tone={reduction !== null && reduction < 0.5 ? 'text-amber' : 'text-teal'} />
-        <HeadlineMetric value={pct(under)} label="under-skirt escape" tone={under !== null && under > 0.1 ? 'text-amber' : 'text-ink'} />
-      </div>
-      <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[11.5px] text-muted">
-        <EnvelopeBadge short />
-        <span>Same seed vs a no-SweepLine baseline · simulation estimate</span>
-      </div>
+      <div className={cn('mt-0.5 text-[17px] leading-snug font-semibold tracking-tight', res.tone === 'cyan' ? 'text-white' : TONE_TEXT[res.tone])}>{res.text}</div>
+      {!collapsed && (
+        <>
+          <div className="mt-2.5 grid grid-cols-3 gap-3 border-t border-line pt-2.5">
+            <HeadlineMetric value={pct(sw.diversionEfficiency)} label="diverted" tone="text-cyan" />
+            <HeadlineMetric value={reduction === null ? '—' : pct(reduction)} label="fewer intake contacts" tone={reduction !== null && reduction < 0.5 ? 'text-amber' : 'text-teal'} />
+            <HeadlineMetric value={pct(under)} label="under-skirt escape" tone={under !== null && under > 0.1 ? 'text-amber' : 'text-ink'} />
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10.5px] text-muted">
+            <EnvelopeBadge short />
+            <span>Same seed vs a no-SweepLine baseline · simulation estimate</span>
+          </div>
+        </>
+      )}
     </div>
   );
 }

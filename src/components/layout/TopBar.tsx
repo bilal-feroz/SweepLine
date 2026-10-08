@@ -32,16 +32,17 @@ function ScenarioMenu() {
   const [open, setOpen] = useState(false);
   const ref = useOutsideClose(open, () => setOpen(false));
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative min-w-0" ref={ref}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex h-[36px] items-center gap-2 rounded-lg border border-line-strong bg-white/[0.03] px-3 text-[13.5px] text-ink transition-colors hover:border-cyan/40"
+        className="flex h-[36px] max-w-full min-w-0 items-center gap-2 rounded-lg border border-line-strong bg-white/[0.03] px-3 text-[13.5px] text-ink transition-colors hover:border-cyan/40"
         aria-expanded={open}
+        title={`Scenario: ${name}`}
       >
-        <span className="text-muted">Scenario</span>
-        <span className="max-w-[190px] truncate font-medium">{name}</span>
-        <ChevronDown size={15} className="text-muted" />
+        <span className="hidden shrink-0 text-muted min-[1380px]:inline">Scenario</span>
+        <span className="max-w-[190px] min-w-0 truncate font-medium">{name}</span>
+        <ChevronDown size={15} className="shrink-0 text-muted" />
       </button>
       {open && (
         <div className="glass absolute top-[44px] right-0 z-50 w-[330px] animate-fade-in !rounded-xl p-1.5 shadow-2xl">
@@ -71,9 +72,11 @@ export function TopBar() {
   const setUI = useApp((s) => s.setUI);
   const paused = useApp((s) => s.snap?.paused ?? false);
   const speed = useApp((s) => s.snap?.speed ?? 5);
+  // Three columns: brand | page tabs | run controls. The side columns are always equal, so the
+  // tabs sit at the centre of the page; on narrow windows the scenario name truncates instead.
   return (
-    <header className="relative z-30 flex h-[60px] shrink-0 items-center gap-6 border-b border-line bg-[#060f17] px-5">
-      <div data-topbar-brand className="flex shrink-0 items-center gap-2.5">
+    <header className="relative z-30 grid h-[60px] shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-6 border-b border-line bg-[#060f17] px-5">
+      <div data-topbar-brand className="flex min-w-0 shrink-0 items-center gap-2.5 justify-self-start">
         <LogoMark size={30} />
         <span className="text-[18px] font-bold tracking-tight text-white">SweepLine</span>
         <span className="pill !h-[22px] !px-2 !text-[10px]" data-tone="muted">
@@ -103,17 +106,17 @@ export function TopBar() {
         })}
       </nav>
 
-      <div className="ml-auto flex items-center gap-2.5">
+      <div className="flex min-w-0 items-center justify-end gap-2.5">
         <ScenarioMenu />
         <button
           type="button"
-          className="btn !h-[36px] !w-[36px] !px-0"
+          className="btn !h-[36px] !w-[36px] shrink-0 !px-0"
           title={paused ? 'Resume simulation' : 'Pause simulation'}
           onClick={() => controller.togglePause()}
         >
           {paused ? <Play size={15} /> : <Pause size={15} />}
         </button>
-        <div className="seg !p-[3px]" title="Simulation speed">
+        <div className="seg shrink-0 !p-[3px]" title="Simulation speed">
           {[1, 5, 20].map((s) => (
             <button key={s} type="button" data-active={speed === s} onClick={() => controller.setSpeed(s)} className="num !h-[28px] !px-2.5">
               {s}x

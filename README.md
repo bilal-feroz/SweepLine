@@ -17,9 +17,12 @@ releases them alive down-current. **Existing intake screens remain unchanged.**
 
 **SweepLine Active** adds two things to the curtain itself:
 
-- **It pops up.** The curtain is stowed on the seabed along its anchor line and rises when its float
-  line is inflated from the throat end, about a minute after the warning, with no vessel. (A
-  workboat-laid option is kept for comparison.)
+- **It pops up.** The curtain is stowed flat on the seabed along its anchor line. After the valve
+  checks, an inflation front runs along the float line from the throat end; each inflated section
+  rises through the water with its skirt hanging beneath it, breaks the surface and only then starts
+  guiding. The whole 20° curtain is up about 1.3 minutes after the command, with no vessel. The
+  ascent speed (`deploy.riseSpeed`, ~10–16 s over 5–8 m of water) is an assumption to be confirmed
+  by flume tests. (A workboat-laid option is kept for comparison.)
 - **It makes its own current.** Low-velocity water jets built into the float line and hem drive a
   conveyor current along the bloom face toward the throat, so the sweep keeps going when the natural
   current is weak, and push water upward at the skirt edge to cancel the downward flow that drags
@@ -68,7 +71,7 @@ Three pages:
 
 | Page | Purpose |
 | --- | --- |
-| **01 Live Simulation** | The 3D twin fills the screen. A headline states the situation (e.g. *Dense bloom approaching*), SweepLine's response (*SweepLine deployed · water jets on*) and the result: diverted, fewer intake contacts, under-skirt escape. Compact timeline, envelope status, **Stress test** (faults, operator SafeOpen, jets on/off, pop-up vs workboat), event log on demand. SafeOpen steps appear only while SafeOpen runs. Scenarios are picked from the top bar. |
+| **01 Live Simulation** | The 3D twin fills the screen. A compact headline (collapsible to one line) states the situation (e.g. *Dense bloom approaching*), SweepLine's response (*SweepLine deployed · water jets on*) and the result: diverted, fewer intake contacts, under-skirt escape. Camera views: **Release Point** (close-up of the outlet), **Top View**, **Perspective**, **Underwater**. Compact timeline with **Replay** (runs the sequence from bloom approach, including the pop-up deployment), envelope status, **Stress test** (faults, operator SafeOpen, jets on/off, pop-up vs workboat), event log on demand. SafeOpen steps appear only while SafeOpen runs. Scenarios are picked from the top bar. |
 | **02 How It Works** | *Don't stop the bloom. Give it another path.* Deploy → Sweep → Recover → Release, the plan view, the current/angle diagram and the three-layer safety story. Engineering detail (side section, specification, operating envelope) sits behind **Technical details**. |
 | **03 Evidence** | Same-seed result (fewer intake contacts), diversion efficiency and under-skirt escape, one with/without chart, validation status (built / next) and the run-data export (JSON / CSV). Simulation estimates — not field-validated. |
 
@@ -94,9 +97,14 @@ rectangle), then the camera swings into the normal perspective view.
   nominal current) points along the shore toward the WSW, so the intro labels it *alongshore*
   rather than with a compass point. `site.ts` documents +x as 112° and offshore as 022°, which
   cannot both hold for the rendered scene (one of them is mirrored).
-- **Loading:** the simulation pre-rolls while the map plays (in shorter chunks so the animation
-  stays smooth). If it is not ready when the map reaches the site, the intro holds there with
-  "Initialising digital twin · NN%"; the large loading card is only used when the intro is off.
+- **One continuous zoom.** The zoom speed (in log scale) rises and falls once — a slow push-in on
+  the UAE, the fastest zoom over the coast, then a long ease-out that lands on the site — and the
+  site drifts to its final screen position in one direction, so there are no surges or reversals
+  between map levels.
+- **Loading:** the simulation pre-rolls while the map plays, in short chunks that run only in the
+  idle time between frames (`requestIdleCallback`), so it never delays a frame. If it is not ready
+  when the map reaches the site, the intro holds there with "Initialising digital twin · NN%"; the
+  large loading card is only used when the intro is off.
 - **Reduced motion:** with `prefers-reduced-motion: reduce`, the reference-site frame is shown
   without zooming and fades straight into the simulation.
 - Landscape screens are the target for now.
@@ -120,6 +128,7 @@ In `npm run dev`, `await __mapIntroAt(2500)` renders exactly that frame (in ms) 
 ### Suggested 2-minute demo
 
 1. **Live Simulation** — read the headline, then watch the bloom bend along the curtain into the throat.
+   **Release Point** shows the animals leaving the outlet alive; **Replay** shows the pop-up deployment.
 2. **Stress test → Transfer failure**, then *Fail the standby path too*: SafeOpen retracts the
    upstream end first and the steps appear on screen. Re-arm when it completes.
 3. **Scenario → Slack Tide** — the current dies away; switch *Water jets* off in Stress test to see a
@@ -168,7 +177,7 @@ src/
     Agent.ts              Typed-array agent pool + states
     geometry.ts           Curtain layouts (15/20/25°), funnel curve, throat bellmouth, spatial grid
     flowField.ts          Current field (shore slow-down, intake draw, throat draw, release jet)
-    curtain.ts            Curtain deploy / reef / unreef / stow state and per-segment skirt depth
+    curtain.ts            Curtain deploy (pop-up rise per section) / reef / unreef / stow state and per-segment skirt depth
     transfer.ts           Primary / standby / passive transfer paths
     waves.ts              Shared sea-state model (also generates the water shader GLSL)
     safety.ts             Operating-envelope evaluation + SafeOpen sequencing
@@ -184,7 +193,7 @@ src/
     assets/               GLB loader + procedural fallbacks (jellyfish, rocks, workboat)
   components/, pages/     React UI (Tailwind CSS v4, lucide-react, Recharts)
   components/intro/       Opening intro: MapIntro (scaffolding), IntroPlayer (rAF loop, hold, skip, hand-off),
-                          introTimeline (keyframes and timed values), mapCamera, mapLabels, introStory, handoff
+                          introTimeline (camera curve and timed values), mapCamera, mapLabels, introStory, handoff
   data/                   mapIntro.generated.ts (from scripts/build-map-intro-data.ts) and its types
 scripts/
   build-map-intro-data.ts Downloads, projects, clips and simplifies the intro's map data (map-intro/ helpers)
@@ -221,6 +230,17 @@ side with one renderer (scissor viewports). Changing the seed or the agent budge
 The agent model is a kinematic engineering simulation — **not CFD and not validated field
 performance**. Each assumption is named in `src/config/assumptions.ts` and mapped to the test that
 will calibrate it on the Validation page.
+
+Agents leave the view only after their outcome has been counted: released animals are followed for
+~40 s after leaving the outlet and then fade, and animals that passed the site offshore fade out
+downstream of the throat, so the water between the throat and the release point shows only real
+traffic.
+
+**Reference demo rule.** The reference bloom drifts along the coast in the band the intake draws
+from, and the curtain's upstream end is tied into the revetment toe. With the reference parameters
+(3.5 m skirt, transfer sized for ~55–75 % utilisation) no more than 5 jellyfish are ever on the
+protected shore side of the curtain at once; `npm run test:demo` checks this over 60 simulated
+minutes and fails if the run exceeds it or is not nominal.
 
 ---
 
@@ -277,6 +297,7 @@ layout restarts the run and redeploys on the new pre-engineered anchors.
 npm run calibrate -- minutes=40 skirtDepth=2.5   # headless Baseline vs SweepLine metrics for any parameters
 npm run test:scenario -- safeopen 9             # headless event log for a scenario (id, minutes)
 npm run test:lifecycle                           # SafeOpen → stow → redeploy → anchor change
+npm run test:demo                                # reference run: ≤ 5 jellyfish on the shore side at any time
 npm run build:map-intro                          # regenerate the opening intro's map data
 ```
 

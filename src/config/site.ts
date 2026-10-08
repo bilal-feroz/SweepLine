@@ -56,8 +56,11 @@ export const SITE = {
     /** Downstream end of the guide curtain where it meets the recovery throat rim. */
     endX: -12,
     endZ: -8,
-    /** Prepared upstream anchor line (just off the revetment toe). */
-    upstreamAnchorZ: -47.5,
+    /**
+     * Upstream end, tied into the revetment toe: no gap between the curtain and the
+     * rocks for jellyfish hugging the shore (agents can come no closer than z = −51).
+     */
+    upstreamAnchorZ: -51.5,
     /** Radius of the smooth funnel curve leading into the throat. */
     funnelRadius: 18,
     /** Polyline sampling interval along the straight section (m). */
@@ -98,11 +101,16 @@ export const SITE = {
   spawn: {
     x: -240,
     jitterX: 12,
-    /** Centre and spread of the bloom's lateral (cross-shore) distribution. */
-    zCenter: -16,
-    zSigma: 34,
+    /**
+     * Centre and spread of the bloom's lateral (cross-shore) distribution. The
+     * reference bloom drifts along the coast in the band the intake draws from —
+     * between the revetment and the curtain's offshore end — rather than far offshore,
+     * where it would pass the site without involving the intake or SweepLine.
+     */
+    zCenter: -28,
+    zSigma: 10,
     zMin: -49.5,
-    zMax: 185,
+    zMax: -8,
     /** Along-shore distance an agent travels from spawn to exit — used to hold population density. */
     traverseLength: 530,
   },

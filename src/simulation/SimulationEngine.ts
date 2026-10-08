@@ -205,6 +205,8 @@ export class SimulationEngine {
         this.curtain.setLayout(layout);
         this.flow.throat = layout.throat;
       }
+      // A stowed pop-up curtain lies on the seabed; a workboat curtain is stowed aboard.
+      if (this.curtain.mode === 'STOWED') this.curtain.deployMode = params.deployMode;
     }
     if (this.transfer) {
       this.transfer.capacityFraction = params.transferCapacity;
@@ -653,6 +655,17 @@ export class SimulationEngine {
         flags[i] = fl;
         counters.exited++;
       }
+      // Agents whose outcome is settled stop being tracked: released jellyfish once they have
+      // cleared the outlet plume, and passers once they are past the intake line. They fade out
+      // and leave the simulation (already counted, so no metric changes).
+      let keep = 1;
+      if (ns === S_RELEASED) keep = 1 - (stateTime[i] - ASSUMPTIONS.release.trackTime) / ASSUMPTIONS.release.fadeTime;
+      else if (fl & F_RESOLVED && !(fl & F_DIVERTED) && x > passLineX) keep = 1 - (x - passLineX) / ASSUMPTIONS.bloom.passedFadeDistance;
+      if (keep <= 0) {
+        pool.free(i);
+        continue;
+      }
+      if (keep < fade[i]) fade[i] = keep;
       if (x > dom.xMax || x < dom.xMin || z > dom.zMax) {
         if (!(fl & F_RESOLVED)) {
           flags[i] = fl | F_RESOLVED;

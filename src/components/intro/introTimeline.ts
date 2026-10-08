@@ -1,25 +1,17 @@
 /**
- * The intro's choreography: camera keyframes and every timed opacity / progress
+ * The intro's choreography: the camera curve and every timed opacity / progress
  * value, as pure functions of intro time `t` (seconds) and the current map span.
  * Nothing here holds state, so any frame can be reproduced exactly
  * (`window.__mapIntroAt(ms)` in development).
  */
-import { band, fadeIn, fadeOut, monotoneCurve, ramp, smootherstep, type MapCamera } from './mapCamera';
+import { band, betaEase, fadeIn, fadeOut, ramp, smootherstep, type MapCamera } from './mapCamera';
 
 /** Key times (seconds). */
 export const T = {
-  /** Establishing hold on the UAE. */
-  establish: 0.65,
-  /** Abu Dhabi emirate. */
-  emirate: 1.55,
-  /** Al Dhafra / western coast. */
-  region: 2.45,
-  /** Al Dhannah coast. */
-  coast: 3.55,
   /** Reference site reached; the intro holds here until the digital twin is ready. */
   site: 4.45,
-  /** Three.js resumes rendering behind the map (in the hand-off pose). */
-  render: 4.15,
+  /** Three.js resumes rendering behind the map (in the hand-off pose) once the zoom has all but landed. */
+  render: 4.38,
   /** Map → 3D crossfade. */
   fadeStart: 4.5,
   fadeEnd: 5.0,
@@ -32,22 +24,22 @@ export const T = {
   end: 7.4,
 } as const;
 
-/**
- * Camera keyframes: span (km across the short side) and the screen position of
- * the lock point (the reference site) in short-side units. The final frame
- * comes from {@link FINAL}. Spans fall steadily in log space with the fastest
- * zoom around the coast, then ease out onto the site.
- */
-const KEYS: Array<{ t: number; span: number; px: number; py: number }> = [
-  { t: 0, span: 700, px: -0.22, py: 0.06 },
-  { t: T.establish, span: 640, px: -0.235, py: 0.055 },
-  { t: T.emirate, span: 330, px: -0.33, py: -0.06 },
-  { t: T.region, span: 100, px: -0.1, py: -0.1 },
-  { t: T.coast, span: 4.2, px: -0.05, py: 0.1 },
-];
+/** Opening composition: span (km across the short side) and the lock point's (reference site's) screen position, in short-side units. */
+const START = { span: 700, px: -0.22, py: 0.06 };
 
 /** Final composition: site slightly below and left of centre, offshore up (rotation set from the data). */
 export const FINAL = { span: 0.4, px: -0.12, py: 0.2 };
+
+/**
+ * Zoom progress (0 → 1 in log span) over [0, T.site]. Its speed ∝ x³(1−x)^1.4 in normalised
+ * time: a slow establishing push-in, one steady build to the fastest zoom over the coast,
+ * then a long ease-out that lands on the site with zero speed and zero deceleration — no
+ * surges between map levels and no braking at the end.
+ */
+const zoomEase = betaEase(4, 2.4);
+
+/** The bank onto the schematic orientation starts here and ends on landing. */
+const BANK_START = 3.0;
 
 export interface Choreography {
   camera(t: number): MapCamera;
@@ -55,20 +47,18 @@ export interface Choreography {
 
 /** Build the camera curves for a final rotation (degrees clockwise). */
 export function buildChoreography(finalRot: number): Choreography {
-  const ts = [...KEYS.map((k) => k.t), T.site];
-  const logSpan = monotoneCurve(ts, [...KEYS.map((k) => Math.log(k.span)), Math.log(FINAL.span)], -0.1, 0);
-  const px = monotoneCurve(ts, [...KEYS.map((k) => k.px), FINAL.px], 0, 0);
-  const py = monotoneCurve(ts, [...KEYS.map((k) => k.py), FINAL.py], 0, 0);
-  // Bank onto the schematic orientation during the final approach.
-  const rotT0 = 3.2;
+  const l0 = Math.log(START.span);
+  const l1 = Math.log(FINAL.span);
   return {
     camera(t: number): MapCamera {
       const tt = Math.min(t, T.site);
+      const u = zoomEase(tt / T.site);
+      // The site drifts to its final screen position in step with the zoom: one direction, no reversals.
       return {
-        span: Math.exp(logSpan(tt)),
-        px: px(tt),
-        py: py(tt),
-        rot: finalRot * smootherstep(ramp(tt, rotT0, T.site)),
+        span: Math.exp(l0 + (l1 - l0) * u),
+        px: START.px + (FINAL.px - START.px) * u,
+        py: START.py + (FINAL.py - START.py) * u,
+        rot: finalRot * smootherstep(ramp(tt, BANK_START, T.site)),
       };
     },
   };
@@ -155,7 +145,8 @@ export function stateAt(t: number, span: number): IntroState {
     captionWest: band(t, 1.2, 1.45, 2.28, 2.46),
     captionCoast: band(t, 2.5, 2.75, 3.45, 3.66),
     eyebrow: band(t, 3.82, 4.1, 6.05, 6.5),
-    pipeline: band(t, 4.0, 4.22, 5.95, 6.35),
+    // Gone before the HUD fades in: the headline's title takes this line.
+    pipeline: band(t, 4.0, 4.22, 5.55, 5.95),
     pipelineStep: 4 * ramp(t, 4.02, 4.44),
     wordmark: band(t, 4.22, 4.55, 6.3, 6.8),
     mask: band(t, 4.18, 4.48, T.revealStart, 6.45),

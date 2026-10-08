@@ -142,9 +142,9 @@ export function makeLandTexture(size = 512): THREE.DataTexture {
   const col = new Uint8Array(size * size * 4);
   for (let k = 0; k < size * size; k++) {
     const v = 0.78 + 0.32 * (n[k] - 0.5) + 0.12 * (g[k] - 0.5);
-    col[k * 4] = Math.min(255, 186 * v);
-    col[k * 4 + 1] = Math.min(255, 170 * v);
-    col[k * 4 + 2] = Math.min(255, 138 * v);
+    col[k * 4] = Math.min(255, 198 * v);
+    col[k * 4 + 1] = Math.min(255, 175 * v);
+    col[k * 4 + 2] = Math.min(255, 130 * v);
     col[k * 4 + 3] = 255;
   }
   return dataTexture(col, size, true);
@@ -211,6 +211,29 @@ export function makeSoftSprite(size = 64, hardness = 2.2): THREE.DataTexture {
       const i = (y * size + x) * 4;
       data[i] = data[i + 1] = data[i + 2] = 255;
       data[i + 3] = a * 255;
+    }
+  }
+  const t = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+  t.magFilter = THREE.LinearFilter;
+  t.minFilter = THREE.LinearFilter;
+  t.needsUpdate = true;
+  return t;
+}
+
+/** Patchy white-water ring (white, alpha) where a rising curtain section breaks the surface. */
+export function makeFoamSprite(size = 128): THREE.DataTexture {
+  const n = fbm(size, [8, 16, 32], [0.45, 0.35, 0.2], 91);
+  const data = new Uint8Array(size * size * 4);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const dx = (x + 0.5) / size - 0.5;
+      const dy = (y + 0.5) / size - 0.5;
+      const r = Math.hypot(dx, dy) * 2;
+      const k = y * size + x;
+      const ring = r < 1 ? Math.exp(-Math.pow((r - 0.6) / 0.24, 2)) : 0;
+      const patch = Math.max(0, (n[k] - 0.3) / 0.7);
+      data[k * 4] = data[k * 4 + 1] = data[k * 4 + 2] = 255;
+      data[k * 4 + 3] = Math.min(1, ring * (0.3 + 1.2 * patch)) * 255;
     }
   }
   const t = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);

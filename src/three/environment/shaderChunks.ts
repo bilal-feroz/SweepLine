@@ -15,13 +15,13 @@ function sunDirection(): THREE.Vector3 {
 export const SHARED = {
   uTime: { value: 0 },
   uSunDir: { value: sunDirection() },
-  uSunColor: { value: new THREE.Color(1.0, 0.94, 0.84) },
+  uSunColor: { value: new THREE.Color(1.0, 0.93, 0.8) },
   /** Per-channel extinction of Gulf seawater (1/m) — red is absorbed fastest. */
   uWaterExtinction: { value: new THREE.Vector3(0.3, 0.085, 0.068) },
   /** In-scattered water colour (linear). */
-  uWaterScatter: { value: new THREE.Color(0.008, 0.075, 0.11) },
-  uHazeColor: { value: new THREE.Color(0.4, 0.53, 0.64) },
-  uHazeDensity: { value: 0.00062 },
+  uWaterScatter: { value: new THREE.Color(0.006, 0.088, 0.118) },
+  uHazeColor: { value: new THREE.Color(0.45, 0.63, 0.8) },
+  uHazeDensity: { value: 0.00046 },
   uCaustics: { value: 0.85 },
   /** 0..1 — Flow View darkens the environment so streamlines read clearly. */
   uFlowDim: { value: 0 },
