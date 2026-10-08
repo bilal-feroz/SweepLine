@@ -11,9 +11,8 @@ import { waveElevation } from '../simulation/waves';
 import { AssetLoader } from './assets/AssetLoader';
 import { adaptExternalJellyGeometry, buildJellyfishGeometry, FAR_LOD, NEAR_LOD } from './assets/procedural/jellyfishGeometry';
 import { buildWorkboat } from './assets/procedural/workboat';
-import { CameraRig, presetPose, type CameraPreset } from './cameras/CameraRig';
+import { CameraRig, type CameraPreset } from './cameras/CameraRig';
 import { buildCoast } from './environment/Coast';
-import { SCENE_EXPOSURE, SCENE_TONE_MAPPING } from './environment/grade';
 import { Seabed } from './environment/Seabed';
 import { SHARED } from './environment/shaderChunks';
 import { SkyDome } from './environment/Sky';
@@ -31,14 +30,6 @@ import { ReleaseSystem } from './systems/ReleaseSystem';
 import { TransferSystem } from './systems/TransferSystem';
 
 const WORLDS: EngineKind[] = ['baseline', 'sweepline'];
-
-interface Thumb {
-  canvas: HTMLCanvasElement;
-  ctx: CanvasRenderingContext2D;
-  preset: Exclude<CameraPreset, 'free'>;
-  camera: THREE.PerspectiveCamera;
-}
-
 
 /**
  * Owns the WebGL renderer and the 3D digital twin. One renderer serves both the
@@ -75,11 +66,6 @@ export class SceneManager {
   private pixelRatio = 1;
   private ui: UIState;
   private snap: SimSnapshot | null = null;
-  private readonly thumbs = new Map<string, Thumb>();
-  /** Feeds to render on the next frame (just added or resized). */
-  private readonly dirtyThumbs = new Set<string>();
-  private thumbTimer = 0;
-  private thumbIndex = 0;
   private infoTimer = 0;
   private bloomTimer = 0;
   private readonly bloomAnchor = new THREE.Vector3(-150, 1, -10);
@@ -114,9 +100,6 @@ export class SceneManager {
     this.pixelRatio = Math.min(window.devicePixelRatio || 1, 1.75);
     this.renderer.setPixelRatio(this.pixelRatio);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    // Applies only to the camera thumbnails drawn straight to the canvas; the main view is graded in post.
-    this.renderer.toneMapping = SCENE_TONE_MAPPING;
-    this.renderer.toneMappingExposure = SCENE_EXPOSURE;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.shadowMap.autoUpdate = false;
@@ -333,25 +316,6 @@ export class SceneManager {
     this.renderer.setSize(w, h, false);
     this.renderer.domElement.style.width = `${w}px`;
     this.renderer.domElement.style.height = `${h}px`;
-  }
-
-  registerThumbnail(key: string, canvas: HTMLCanvasElement, preset: Exclude<CameraPreset, 'free'>): void {
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const cam = new THREE.PerspectiveCamera(48, canvas.width / canvas.height, 0.12, 12000);
-    this.thumbs.set(key, { canvas, ctx, preset, camera: cam });
-    this.dirtyThumbs.add(key);
-    this.thumbTimer = 0;
-  }
-
-  /** Re-render a feed on the next frame (e.g. after its canvas was resized). */
-  refreshThumbnail(key: string): void {
-    if (this.thumbs.has(key)) this.dirtyThumbs.add(key);
-  }
-
-  unregisterThumbnail(key: string): void {
-    this.thumbs.delete(key);
-    this.dirtyThumbs.delete(key);
   }
 
   // ------------------------------------------------------------------ store sync
@@ -654,8 +618,6 @@ export class SceneManager {
     }
     if (refreshShadows && !this.ui.compare) this.renderer.shadowMap.needsUpdate = true;
 
-    this.renderThumbnails(dt, worlds);
-
     const underwater = this.configureForCamera(this.camera);
     this.labels.beginFrame();
     this.post.configure(this.viewState(underwater));
@@ -673,7 +635,7 @@ export class SceneManager {
       for (const [i, w] of (['baseline', 'sweepline'] as EngineKind[]).entries()) {
         const x0 = i === 0 ? 0 : this.width - half;
         this.setWorld(w);
-        this.jellies[w].update(ctrl.engine(w), this.camera, true);
+        this.jellies[w].update(ctrl.engine(w), this.camera);
         if (i === 0 && refreshShadows) this.renderer.shadowMap.needsUpdate = true;
         this.post.render({ x: x0, y: 0, width: half, height: this.height }, dt, 0.5);
         this.labels.place(this.camera, i === 0 ? 'left' : 'right', x0, half, this.height, underwater);
@@ -685,7 +647,7 @@ export class SceneManager {
       this.camera.aspect = this.width / this.height;
       this.camera.updateProjectionMatrix();
       this.setWorld(w);
-      this.jellies[w].update(ctrl.engine(w), this.camera, true);
+      this.jellies[w].update(ctrl.engine(w), this.camera);
       this.post.render({ x: 0, y: 0, width: this.width, height: this.height }, dt);
       this.labels.place(this.camera, w === 'sweepline' ? 'single' : 'base', 0, this.width, this.height, underwater);
     }
@@ -731,58 +693,6 @@ export class SceneManager {
       if (r.width === 0 || r.height === 0) continue;
       obs.push({ l: r.left - base.left, r: r.right - base.left, t: r.top - base.top, b: r.bottom - base.top });
     }
-  }
-
-  private renderThumbnails(dt: number, worlds: EngineKind[]): void {
-    if (this.thumbs.size === 0) return;
-    // A just-added or resized feed renders immediately; otherwise feeds refresh in turn.
-    let th: Thumb | undefined;
-    const next = this.dirtyThumbs.values().next();
-    if (!next.done) {
-      this.dirtyThumbs.delete(next.value);
-      th = this.thumbs.get(next.value);
-    }
-    if (!th) {
-      this.thumbTimer -= dt;
-      if (this.thumbTimer > 0) return;
-      this.thumbTimer = 0.35;
-      const list = [...this.thumbs.values()];
-      th = list[this.thumbIndex % list.length];
-      this.thumbIndex++;
-    }
-    // Match the feed's resolution and shape to its on-screen tile (no stretching or cropping).
-    const cw = th.canvas.clientWidth;
-    const ch = th.canvas.clientHeight;
-    if (cw > 0 && ch > 0) {
-      const scale = Math.min(window.devicePixelRatio || 1, 1.5);
-      const w = Math.max(64, Math.round(cw * scale));
-      const h = Math.max(48, Math.round(ch * scale));
-      if (th.canvas.width !== w || th.canvas.height !== h) {
-        th.canvas.width = w;
-        th.canvas.height = h;
-      }
-    }
-    const layout = this.ctrl.sweepline.curtain!.layout;
-    const pose = presetPose(th.preset, layout);
-    th.camera.position.copy(pose.pos);
-    th.camera.lookAt(pose.target);
-    th.camera.aspect = th.canvas.width / th.canvas.height;
-    th.camera.updateProjectionMatrix();
-    const world = this.ui.compare ? 'sweepline' : worlds[0];
-    const tw = Math.min(th.canvas.width, this.width);
-    const thh = Math.min(th.canvas.height, this.height);
-    this.setWorld(world);
-    this.jellies[world].update(this.ctrl.engine(world), th.camera, th.preset !== 'underwater' && th.preset !== 'throat');
-    this.configureForCamera(th.camera);
-    const r = this.renderer;
-    r.setScissorTest(true);
-    r.setViewport(0, 0, tw, thh);
-    r.setScissor(0, 0, tw, thh);
-    r.render(this.scene, th.camera);
-    r.setScissorTest(false);
-    const pr = this.renderer.getPixelRatio();
-    const src = this.renderer.domElement;
-    th.ctx.drawImage(src, 0, src.height - thh * pr, tw * pr, thh * pr, 0, 0, th.canvas.width, th.canvas.height);
   }
 
   /** Anchor the bloom label at the centroid of the approaching bloom that is visible in the current view. */

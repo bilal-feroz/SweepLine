@@ -251,7 +251,7 @@ export class JellyfishSystem {
     this.group.add(fresh.mesh);
   }
 
-  update(engine: SimulationEngine, camera: THREE.Camera, legibility: boolean): void {
+  update(engine: SimulationEngine, camera: THREE.Camera): void {
     const p = engine.pool;
     this.ensureCapacity(p.capacity);
     const cam = camera.position;
@@ -277,7 +277,7 @@ export class JellyfishSystem {
       const dz = z - cam.z;
       const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
       let boost = 1;
-      if (legibility && dist > LEGIBILITY.start) boost = Math.min(LEGIBILITY.max, 1 + (dist - LEGIBILITY.start) * LEGIBILITY.perMetre);
+      if (dist > LEGIBILITY.start) boost = Math.min(LEGIBILITY.max, 1 + (dist - LEGIBILITY.start) * LEGIBILITY.perMetre);
       const s = size[i] * boost;
       // Enlarged bells are flattened a little and kept below the surface, so they never sit on top of the water.
       const flat = boost > 1 ? 1 - 0.22 * Math.min(1, (boost - 1) / 6) : 1;
