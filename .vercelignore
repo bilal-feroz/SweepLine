@@ -1,0 +1,8 @@
+# Local-only: dependencies, build output, map-data downloads, render captures and Claude Code session files.
+node_modules
+dist
+.cache
+.snapshots
+.claude
+*.local
+*.tsbuildinfo
