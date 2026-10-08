@@ -106,8 +106,11 @@ rectangle), then the camera swings into the normal perspective view.
   pop-up deployment the bloom starts in view, just upstream of the curtain's upstream anchor: its
   leading edge is set back from every section by the drift (slower near the revetment) until that
   section has surfaced, so the curtain is up before the bloom reaches it
-  (`ASSUMPTIONS.bloom.popUpFrontMargin`). **Replay** starts the same way. The **Perspective** view
-  keeps that start, the curtain, the throat and the intake in frame on any landscape screen.
+  (`ASSUMPTIONS.bloom.popUpFrontMargin`). Ahead of it, a few stragglers in the inshore lanes reach
+  the curtain's starting end while it is still rising and slip past — the leak a pop-up deployment
+  still allows (`ASSUMPTIONS.bloom.leadingScatter`); later the odd deep jellyfish passes under the
+  skirt. **Replay** starts the same way. The **Perspective** view keeps that start, the curtain, the
+  throat and the intake in frame on any landscape screen.
 - **Loading:** the 3D view's shaders compile in the background while the map plays
   (`KHR_parallel_shader_compile`). Its first frame still stalls briefly, so it is drawn behind a
   still map — while the opening caption holds, if compilation has finished by then, otherwise on
@@ -192,10 +195,14 @@ The 3D view renders in linear HDR into a 4× MSAA buffer and finishes in post-pr
 (`src/three/post/PostPipeline.ts`, [pmndrs/postprocessing](https://github.com/pmndrs/postprocessing)):
 
 ```
-scene → ambient occlusion → above water: tilt-shift · bloom · grade · LUT · vignette
-                          → underwater:  light shafts + wobble → depth of field · bloom · grade · LUT · vignette
-                          → SMAA → canvas
+scene → ambient occlusion → sanitize → above water: tilt-shift · bloom · grade · LUT · vignette
+                                     → underwater:  light shafts + wobble → depth of field · bloom · grade · LUT · vignette
+                                     → SMAA → canvas
 ```
+
+- **Sanitize.** A NaN or infinite pixel from any material would be smeared over the frame by the
+  blur and bloom passes as a black flash; `SanitizeEffect` drops it and caps the HDR range first.
+  Shaders also keep `pow()` bases non-negative (a negative base is NaN on Direct3D).
 
 - **Grade.** `GradeEffect` is the same ACES filmic curve + vibrance lift the scene always used
   (`environment/grade.ts`); a small generated LUT (`post/lookLut.ts`) adds a gentle S-curve with

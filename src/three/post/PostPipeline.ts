@@ -15,6 +15,7 @@ import {
 import { N8AOPostPass } from 'n8ao';
 import { GradeEffect } from './GradeEffect';
 import { createLookLUT } from './lookLut';
+import { SanitizeEffect } from './SanitizeEffect';
 import { UnderwaterEffect } from './UnderwaterEffect';
 
 /** A viewport on the canvas in CSS pixels, origin bottom-left (as WebGLRenderer.setViewport). */
@@ -50,10 +51,10 @@ const smooth = (a: number, b: number, v: number) => {
 /**
  * Post-processing for the 3D view (pmndrs/postprocessing + N8AO):
  *
- *   scene (HDR, 4× MSAA) → ambient occlusion → [above water] tilt-shift · bloom · grade · LUT · vignette
- *                                            → [underwater]  light shafts + wobble
- *                                                            → depth of field · bloom · grade · LUT · vignette
- *                                            → SMAA → canvas
+ *   scene (HDR, 4× MSAA) → ambient occlusion → sanitize (no NaN / ∞)
+ *     → [above water] tilt-shift · bloom · grade · LUT · vignette
+ *     → [underwater]  light shafts + wobble → depth of field · bloom · grade · LUT · vignette
+ *     → SMAA → canvas
  *
  * Each view (the single view, or each half of Compare) runs the whole chain at its own size into
  * its own viewport, so depth-based effects always see the projection they were rendered with.
@@ -93,6 +94,9 @@ export class PostPipeline {
     this.ao.configuration.distanceFalloff = 1.0;
     this.ao.configuration.color = new THREE.Color(0x0b1820);
     this.composer.addPass(this.ao);
+
+    // No stray NaN / infinite pixel reaches the blur and bloom passes, which would spread it over the frame.
+    this.composer.addPass(new EffectPass(camera, new SanitizeEffect()));
 
     const bloom = () =>
       new BloomEffect({ mipmapBlur: true, luminanceThreshold: 1.0, luminanceSmoothing: 0.35, intensity: 0.55, radius: 0.72 });

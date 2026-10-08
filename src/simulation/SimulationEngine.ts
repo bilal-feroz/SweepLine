@@ -254,6 +254,16 @@ export class SimulationEngine {
       const x = B.approachFillFrom + this.rng.next() * span;
       this.spawnOne(x, null);
     }
+    // Ahead of a bloom timed to a pop-up deployment, its ragged leading edge (see `leadingScatter`).
+    if (this.params.deployMode === 'popup' && this.params.autoDeploy) {
+      const S = B.leadingScatter;
+      const layout = getCurtainLayout(this.params.anchorAngle);
+      for (let i = 0; i < S.count; i++) {
+        const z = S.zMin + this.rng.next() * (S.zMax - S.zMin);
+        const x = curtainXAt(layout, z) - (S.leadMin + this.rng.next() * (S.leadMax - S.leadMin));
+        this.spawnOne(x, z);
+      }
+    }
   }
 
   /**

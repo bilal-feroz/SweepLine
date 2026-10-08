@@ -59,6 +59,13 @@ export const ASSUMPTIONS = {
      */
     popUpFrontMargin: 1.15,
     popUpFrontGap: 6,
+    /**
+     * The bloom's ragged leading edge: a few individuals ahead of the patch in the inshore lanes
+     * (lateral band, m), this far (m) upstream of the curtain line. They reach it while its
+     * upstream end is still rising, so they cross before it can guide them — the leak a pop-up
+     * deployment still allows. Assumption.
+     */
+    leadingScatter: { count: 4, zMin: -48.5, zMax: -42, leadMin: 3, leadMax: 9 },
     /** Stress-test bloom surge: a band this deep (m) ending this far (m) upstream of a guiding curtain. */
     surgeDepth: 45,
     surgeGap: 8,
