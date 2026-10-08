@@ -48,10 +48,10 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173. A five-second geographic intro plays while the simulation pre-rolls,
-then hands off into Live Simulation with SweepLine in live operation (see
-[Opening intro](#opening-intro)). Press any key or click to skip it; add `?intro=0` to the URL to
-turn it off.
+Open http://localhost:5173. A short geographic intro plays, then hands off into Live Simulation at
+the start of the run: the bloom is approaching and the curtain pops up from the seabed in front of
+it (see [Opening intro](#opening-intro)). Press Esc to skip the intro (clicks do nothing while it
+plays); add `?intro=0` to the URL to turn it off.
 
 ### Build
 
@@ -101,10 +101,16 @@ rectangle), then the camera swings into the normal perspective view.
   the UAE, the fastest zoom over the coast, then a long ease-out that lands on the site — and the
   site drifts to its final screen position in one direction, so there are no surges or reversals
   between map levels.
-- **Loading:** the simulation pre-rolls while the map plays, in short chunks that run only in the
-  idle time between frames (`requestIdleCallback`), so it never delays a frame. If it is not ready
-  when the map reaches the site, the intro holds there with "Initialising digital twin · NN%"; the
-  large loading card is only used when the intro is off.
+- **Run start:** the run opens on the bloom approach and waits, paused, until the map gives way to
+  the 3D view, so the early warning and the pop-up deployment play out on screen. With an automatic
+  pop-up deployment the bloom starts close in: its leading edge follows the curtain line, set back
+  from each section by the drift until that section has surfaced, so the bloom meets the curtain
+  soon after it is up (`ASSUMPTIONS.bloom.popUpFrontMargin`). **Replay** starts the same way.
+- **Loading:** the 3D view's shaders compile in the background while the map plays
+  (`KHR_parallel_shader_compile`). Its first frame still stalls briefly, so it is drawn behind a
+  still map — while the opening caption holds, if compilation has finished by then, otherwise on
+  the landed site, where the intro holds until it is done. The map itself is hidden until its first
+  frame has been laid out.
 - **Reduced motion:** with `prefers-reduced-motion: reduce`, the reference-site frame is shown
   without zooming and fades straight into the simulation.
 - Landscape screens are the target for now.
@@ -127,8 +133,9 @@ In `npm run dev`, `await __mapIntroAt(2500)` renders exactly that frame (in ms) 
 
 ### Suggested 2-minute demo
 
-1. **Live Simulation** — read the headline, then watch the bloom bend along the curtain into the throat.
-   **Release Point** shows the animals leaving the outlet alive; **Replay** shows the pop-up deployment.
+1. **Live Simulation** — the run opens on the bloom approach: the curtain pops up in front of it, then
+   the bloom bends along the curtain into the throat. **Release Point** shows the animals leaving the
+   outlet alive; **Replay** runs the sequence again.
 2. **Stress test → Transfer failure**, then *Fail the standby path too*: SafeOpen retracts the
    upstream end first and the steps appear on screen. Re-arm when it completes.
 3. **Scenario → Slack Tide** — the current dies away; switch *Water jets* off in Stress test to see a
@@ -294,7 +301,8 @@ traffic.
 from, and the curtain's upstream end is tied into the revetment toe. With the reference parameters
 (3.5 m skirt, transfer sized for ~55–75 % utilisation) no more than 5 jellyfish are ever on the
 protected shore side of the curtain at once; `npm run test:demo` checks this over 60 simulated
-minutes and fails if the run exceeds it or is not nominal.
+minutes from the bloom approach (how the app opens, and Replay) and after the steady pre-roll, and
+fails if either run exceeds it or is not nominal.
 
 ---
 

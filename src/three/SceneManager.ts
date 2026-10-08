@@ -103,6 +103,7 @@ export class SceneManager {
   readonly assets = new AssetLoader();
   /** Skip drawing (simulation visuals still update) — set while an opaque overlay covers the view. */
   renderSuspended = false;
+  private precompiling: Promise<void> | null = null;
 
   constructor(ctrl: SimController) {
     this.ctrl = ctrl;
@@ -305,6 +306,22 @@ export class SceneManager {
   /** Re-measure the host slot (ResizeObserver does not fire while the page is hidden). */
   forceResize(): void {
     this.resize();
+  }
+
+  /**
+   * Compile the scene's shaders in the background (KHR_parallel_shader_compile where available),
+   * as the main view uses them (drawing into the post-processing buffer), so the first frames do
+   * not stall on compilation.
+   */
+  precompile(): Promise<void> {
+    if (!this.precompiling) {
+      const r = this.renderer;
+      const prev = r.getRenderTarget();
+      r.setRenderTarget(this.post.sceneTarget);
+      this.precompiling = r.compileAsync(this.scene, this.camera).then(() => undefined);
+      r.setRenderTarget(prev);
+    }
+    return this.precompiling;
   }
 
   private resize(): void {

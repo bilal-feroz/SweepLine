@@ -44,12 +44,21 @@ export const ASSUMPTIONS = {
     /** Temporal patchiness of the arrival rate (± fraction). */
     rateVariation: 0.3,
     /**
-     * Extent of the bloom when a run starts from the approach stage (m). The early warning
-     * arrives while the leading edge is still upstream of every anchor layout, so the pop-up
-     * curtain is up before the bloom reaches it (none is trapped on the shore side).
+     * Extent of the bloom when a run starts from the approach stage (m), used when the curtain is
+     * not popped up automatically (workboat or manual deployment): the leading edge is still
+     * upstream of every anchor layout.
      */
     approachFillFrom: -240,
     approachFillTo: -200,
+    /**
+     * With an automatic pop-up deployment the run starts with the bloom close in: its leading
+     * edge follows the curtain line, set back from each section by the drift until that section
+     * has surfaced (early warning, deployment confirmation and its pop-up time, × this margin),
+     * plus `popUpFrontGap` (m). Every section is up before the bloom reaches it, and the bloom
+     * meets the curtain soon after; behind the edge it extends back to the spawn line.
+     */
+    popUpFrontMargin: 1.15,
+    popUpFrontGap: 6,
   },
 
   curtain: {

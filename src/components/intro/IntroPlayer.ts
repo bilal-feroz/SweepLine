@@ -2,7 +2,8 @@
  * Runs the geographic intro: one requestAnimationFrame loop writes the camera
  * transform, layer opacities, labels and the schematic overlay straight to the
  * DOM (React only mounts the scaffolding), holds on the reference site until
- * the digital twin has pre-rolled, then hands off to the Three.js view.
+ * the digital twin is ready, then hands off to the Three.js view. The run waits
+ * at its first moment (bloom approaching, curtain stowed) until the hand-off.
  */
 import { getScene } from '../../app/runtime';
 import { useApp } from '../../app/store';
@@ -21,8 +22,17 @@ export type IntroMode = 'play' | 'frozen' | 'reduced';
 const SMALL_SCREEN = 600;
 /** Pre-roll chunk cap while the map animates (ms); chunks then run only in idle time between frames. */
 const PREROLL_SLICE_ANIMATING = 8;
-/** Real-time warm-up of the 3D view behind the map (shader compile, shadow map) before it is suspended. */
+/** Real-time warm-up of the 3D view behind the map (shadow map, post-processing shaders) before it is suspended. */
 const WARMUP_MS = 420;
+/**
+ * The first 3D frame stalls while shaders are set up, so it is drawn while nothing on the map moves
+ * but the slow opening push-in (the UAE caption's hold, intro seconds) if the background compile
+ * has finished by then, otherwise once the map has landed on the site, where the intro holds until
+ * it has been drawn.
+ */
+const WARMUP_WINDOW = [0.46, 0.96] as const;
+/** Longest wait on the landed site for the background compile before warming up regardless (ms). */
+const COMPILE_WAIT_MS = 4000;
 /** Speed-up applied to the rest of the sequence after a skip. */
 const SKIP_SPEED = 2.4;
 
@@ -74,7 +84,11 @@ export class IntroPlayer {
   private speed = 1;
   private raf = 0;
   private last = 0;
-  private startedAt = 0;
+  /** Loop frames run so far: shader work starts only once the first map frame is on screen. */
+  private frames = 0;
+  private compiled = false;
+  /** When the 3D warm-up started (-1: not yet). */
+  private warmAt = -1;
   private vp: IntroViewport;
   private canvas: ScreenRect | null = null;
   private slot: ScreenRect | null = null;
@@ -126,16 +140,11 @@ export class IntroPlayer {
 
     const onResize = () => this.measure();
     window.addEventListener('resize', onResize);
+    // Only Escape skips; clicks and other keys do nothing while the intro plays.
     const onKey = (e: KeyboardEvent) => {
-      if (this.mode === 'frozen') return;
-      if (e.key === 'Tab') return;
-      this.skip();
+      if (this.mode !== 'frozen' && e.key === 'Escape') this.skip();
     };
     window.addEventListener('keydown', onKey);
-    const onPointer = () => {
-      if (this.mode !== 'frozen') this.skip();
-    };
-    this.root.addEventListener('pointerdown', onPointer);
     const unsub = useApp.subscribe((s, prev) => {
       if (s.ui.page !== prev.ui.page && s.ui.page !== 'live') this.leaveWithoutHandoff();
     });
@@ -144,16 +153,15 @@ export class IntroPlayer {
     this.cleanups.push(
       () => window.removeEventListener('resize', onResize),
       () => window.removeEventListener('keydown', onKey),
-      () => this.root.removeEventListener('pointerdown', onPointer),
       () => document.removeEventListener('visibilitychange', onVisibility),
       unsub,
     );
 
-    this.startedAt = performance.now();
     if (this.mode === 'frozen') {
       this.freezeAt(atMs);
       return;
     }
+    this.holdRun();
     if (this.mode === 'reduced') {
       // No zoom: the reference-site frame, then a short fade once the twin is ready.
       this.t = T.site;
@@ -193,12 +201,22 @@ export class IntroPlayer {
     controller.preRollIdle = false;
     sm.renderSuspended = false;
     sm.controls.maxDistance = this.savedMaxDistance || sm.controls.maxDistance;
-    if (this.savedPaused !== null) {
-      controller.paused = this.savedPaused;
-      this.savedPaused = null;
-    }
+    this.releaseRun();
     if (resetCamera && this.handoff) sm.rig.snap('aerial', controller.sweepline.curtain!.layout);
     this.setHud(null);
+  }
+
+  /** Keep the run at its current moment (the bloom approach) until the 3D view takes over. */
+  private holdRun(): void {
+    if (this.savedPaused !== null) return;
+    this.savedPaused = controller.paused;
+    controller.paused = true;
+  }
+
+  private releaseRun(): void {
+    if (this.savedPaused === null) return;
+    controller.paused = this.savedPaused;
+    this.savedPaused = null;
   }
 
   // ------------------------------------------------------------------ public controls
@@ -223,10 +241,7 @@ export class IntroPlayer {
     this.mode = 'frozen';
     this.updateSlice();
     cancelAnimationFrame(this.raf);
-    if (this.savedPaused === null) {
-      this.savedPaused = controller.paused;
-      controller.paused = true;
-    }
+    this.holdRun();
     this.measure();
     this.labels.measure();
     this.t = Math.max(0, Math.min(T.end, ms / 1000));
@@ -234,12 +249,9 @@ export class IntroPlayer {
     this.render(this.t, this.ambient);
   }
 
-  /** Resume normal playback from `ms`. */
+  /** Resume normal playback from `ms` (the run is released at the hand-off, as on opening). */
   playFrom(ms: number): void {
-    if (this.savedPaused !== null) {
-      controller.paused = this.savedPaused;
-      this.savedPaused = null;
-    }
+    this.holdRun();
     this.mode = 'play';
     this.finished = false;
     this.flightStarted = false;
@@ -247,7 +259,9 @@ export class IntroPlayer {
     this.updateSlice();
     this.t = Math.max(0, ms / 1000);
     this.ambient = this.t;
-    this.startedAt = performance.now() - (this.t < 0.5 ? 0 : WARMUP_MS);
+    // From the start the warm-up runs again; later on, the 3D view is treated as warmed up.
+    this.frames = 0;
+    this.warmAt = this.t < 0.5 ? -1 : performance.now() - WARMUP_MS;
     cancelAnimationFrame(this.raf);
     this.last = performance.now();
     this.raf = requestAnimationFrame(this.loop);
@@ -259,6 +273,8 @@ export class IntroPlayer {
     if (this.finished) return;
     const dt = Math.min(0.05, Math.max(0, (now - this.last) / 1000));
     this.last = now;
+    this.frames++;
+    this.prepare3d();
     const ready = this.ready();
     if (this.mode === 'reduced') {
       if (ready || this.noHandoff) {
@@ -279,6 +295,8 @@ export class IntroPlayer {
       return;
     }
     this.t = t;
+    // The run starts as the map gives way to the 3D view.
+    if (this.t >= T.fadeStart) this.releaseRun();
     if (this.t >= T.end) {
       this.complete(false);
       return;
@@ -288,7 +306,21 @@ export class IntroPlayer {
   };
 
   private ready(): boolean {
-    return controller.ready && !useApp.getState().loading.active && this.handoff !== null;
+    return controller.ready && !useApp.getState().loading.active && this.handoff !== null && (this.mode !== 'play' || this.warmAt >= 0);
+  }
+
+  /**
+   * Shader work for the 3D view starts once the first map frame is on screen: background
+   * compilation from the second frame, then the warm-up on a still map (see WARMUP_WINDOW).
+   */
+  private prepare3d(): void {
+    if (this.mode !== 'play' || this.warmAt >= 0) return;
+    if (this.frames === 2) void getScene().precompile().then(() => (this.compiled = true));
+    if (this.frames <= 2) return;
+    const still = this.t >= WARMUP_WINDOW[0] && this.t < WARMUP_WINDOW[1];
+    const landed = this.t >= T.site - 1e-6;
+    const overdue = landed && this.holdSince >= 0 && performance.now() - this.holdSince > COMPILE_WAIT_MS;
+    if ((this.compiled && (still || landed)) || overdue) this.warmAt = performance.now();
   }
 
   // ------------------------------------------------------------------ measurement
@@ -355,6 +387,8 @@ export class IntroPlayer {
     this.updateProgress(false);
     // The Live headline (whose eyebrow the closing caption becomes) appears with the first snapshot.
     if (!this.eyebrowPlaced && t > 3 && document.querySelector('[data-live-eyebrow]')) this.placeChrome();
+    // The map is hidden until its first frame has been laid out (see intro.css).
+    if (!this.root.hasAttribute('data-ready')) this.root.setAttribute('data-ready', '');
   }
 
   private renderLevels(st: IntroState, small: boolean): void {
@@ -540,11 +574,13 @@ export class IntroPlayer {
     const holding = force || (this.t >= T.site - 1e-6 && !this.ready() && !this.noHandoff);
     if (holding && this.holdSince < 0) this.holdSince = performance.now();
     if (!holding) this.holdSince = -1;
-    const vis = holding ? ramp(performance.now() - this.holdSince, 150, 450) : 0;
+    // A short hold (the first 3D frame) passes without a message.
+    const vis = holding ? ramp(performance.now() - this.holdSince, 600, 900) : 0;
     setOpacity(this.els.progress, vis, this.opacity);
     if (vis > 0) {
-      const p = useApp.getState().loading.progress;
-      (this.els['progress-text'] as HTMLElement).textContent = `Initialising digital twin · ${Math.round(p * 100)}%`;
+      const l = useApp.getState().loading;
+      const p = l.active ? l.progress : 1;
+      (this.els['progress-text'] as HTMLElement).textContent = l.active ? `Initialising digital twin · ${Math.round(p * 100)}%` : 'Initialising digital twin…';
       (this.els['progress-bar'] as HTMLElement).style.transform = `scaleX(${Math.max(0.02, p).toFixed(3)})`;
     }
   }
@@ -554,10 +590,12 @@ export class IntroPlayer {
   private sync3d(t: number): void {
     const sm = getScene();
     if (!sm.attached || !this.handoff || this.noHandoff) return;
-    const warm = this.mode === 'play' && performance.now() - this.startedAt < WARMUP_MS;
-    sm.renderSuspended = !(warm || t >= T.render);
+    const warm = this.mode === 'play' && this.warmAt >= 0 && performance.now() - this.warmAt < WARMUP_MS;
+    // Behind the landed map the view renders from its warm-up on (at once when there is no zoom).
+    const live = t >= T.render && (this.mode !== 'play' || this.warmAt >= 0);
+    sm.renderSuspended = !(warm || live);
     if (t < T.flyStart) {
-      if (this.mode === 'frozen' || warm || t >= T.render) {
+      if (this.mode === 'frozen' || warm || live) {
         const p = this.handoff;
         if (!sm.camera.position.equals(p.pos) || !sm.controls.target.equals(p.target)) sm.rig.setPose(p);
       }

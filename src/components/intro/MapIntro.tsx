@@ -248,7 +248,7 @@ export function MapIntro() {
         {MAP_INTRO_DATA.attribution}
       </div>
       <p className="sr-only" data-o="status" aria-live="polite" />
-      <p className="sr-only">Opening sequence — press any key or click to skip.</p>
+      <p className="sr-only">Opening sequence — press Escape to skip.</p>
     </div>
   );
 }

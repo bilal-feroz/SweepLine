@@ -33,7 +33,8 @@ export function startRuntime(): void {
     requestAnimationFrame(loop);
   };
   requestAnimationFrame(loop);
-  void controller.restart('steady', null);
+  // The run opens on the bloom approach, so the early warning and the pop-up deployment play out on screen.
+  void controller.restart('sequence', null);
 
   if (import.meta.env.DEV) installDevHooks(sm);
 }

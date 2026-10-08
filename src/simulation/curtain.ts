@@ -15,16 +15,19 @@ function floorDepths(layout: CurtainLayout): Float32Array {
 }
 
 /**
- * Seconds from a pop-up deployment command until every section has surfaced: valve checks,
- * the inflation front running to the upstream anchor, and each section's ascent.
+ * Seconds from a pop-up deployment command until segment k has surfaced: valve checks, the
+ * inflation front running from the throat end to the segment, and the segment's ascent.
  */
+export function popUpSurfaceTime(layout: CurtainLayout, k: number): number {
+  const s = layout.s0[k] + layout.len[k] * 0.5;
+  return D.popUpDelay + (layout.length - s) / D.popUpSpeed + seabedDepth(layout.midX[k], layout.midZ[k]) / D.riseSpeed;
+}
+
+/** Seconds from a pop-up deployment command until every section has surfaced. */
 export function popUpDuration(layout: CurtainLayout): number {
   let t = 0;
-  for (let k = 0; k < layout.segCount; k++) {
-    const s = layout.s0[k] + layout.len[k] * 0.5;
-    t = Math.max(t, (layout.length - s) / D.popUpSpeed + seabedDepth(layout.midX[k], layout.midZ[k]) / D.riseSpeed);
-  }
-  return D.popUpDelay + t;
+  for (let k = 0; k < layout.segCount; k++) t = Math.max(t, popUpSurfaceTime(layout, k));
+  return t;
 }
 
 /**

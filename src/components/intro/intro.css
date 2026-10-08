@@ -12,6 +12,12 @@
   color: var(--color-ink);
 }
 
+/* Until the player has drawn its first frame only the dark water shows (the raw SVG has no camera yet). */
+.sl-intro:not([data-ready]) > :not(.sl-intro-map),
+.sl-intro:not([data-ready]) .sl-intro-svg {
+  visibility: hidden;
+}
+
 .sl-intro-map {
   position: absolute;
   inset: 0;
