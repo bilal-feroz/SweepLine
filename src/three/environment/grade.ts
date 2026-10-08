@@ -1,5 +1,3 @@
-import * as THREE from 'three';
-
 /** Strength of the vibrance lift applied after the filmic curve. */
 const VIBRANCE = 0.34;
 
@@ -7,7 +5,7 @@ const VIBRANCE = 0.34;
  * The scene grade as GLSL: the ACES filmic curve (three.js's fit, input already scaled by
  * exposure), then a vibrance lift that boosts muted colours (water, sand, haze) more than
  * already-saturated ones, so the scene reads vivid while the amber/red status colours keep
- * their hue. Shared by the post-processing grade and the direct (thumbnail) render path.
+ * their hue. Applied in post-processing by GradeEffect.
  */
 export const GRADE_GLSL = /* glsl */ `
 vec3 slAcesFit(vec3 v) {
@@ -35,21 +33,5 @@ vec3 slGrade(vec3 color) {
 }
 `;
 
-const STOCK = 'vec3 CustomToneMapping( vec3 color ) { return color; }';
-const patched = THREE.ShaderChunk.tonemapping_pars_fragment.includes(STOCK);
-if (patched) {
-  THREE.ShaderChunk.tonemapping_pars_fragment = THREE.ShaderChunk.tonemapping_pars_fragment.replace(
-    STOCK,
-    `${GRADE_GLSL}\nvec3 CustomToneMapping( vec3 color ) { return slGrade( color * toneMappingExposure ); }`,
-  );
-}
-
-/** Exposure applied before the grade (renderer and post-processing alike). */
+/** Exposure applied before the grade. */
 export const SCENE_EXPOSURE = 1.02;
-
-/**
- * Tone mapping for materials drawn straight to the canvas (camera thumbnails). The main view is
- * graded in post-processing (GradeEffect) with the same curve. Falls back to plain ACES if
- * three.js changes its tone-mapping chunk.
- */
-export const SCENE_TONE_MAPPING: THREE.ToneMapping = patched ? THREE.CustomToneMapping : THREE.ACESFilmicToneMapping;

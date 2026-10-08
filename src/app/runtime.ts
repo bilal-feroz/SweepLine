@@ -77,7 +77,7 @@ function installDevHooks(sm: SceneManager): void {
     // Canvases stall the rasteriser in hidden windows: exclude them and composite them directly.
     const noCanvas = (n: HTMLElement) => !(n instanceof HTMLCanvasElement);
     const root = document.getElementById('root')!;
-    const thumbs = [...root.querySelectorAll('canvas')].filter((c) => c !== gl);
+    const canvases = [...root.querySelectorAll('canvas')].filter((c) => c !== gl);
     // Full-screen overlays (the opening intro) sit above the 3D view: composite them last.
     const overlays = [...root.querySelectorAll<HTMLElement>('[data-capture-overlay]')];
     const isOverlay = (n: HTMLElement) => n instanceof HTMLElement && n.dataset.captureOverlay !== undefined;
@@ -99,9 +99,9 @@ function installDevHooks(sm: SceneManager): void {
     ctx.fillStyle = '#050b11';
     ctx.fillRect(0, 0, c.width, c.height);
     ctx.drawImage(fullImg, 0, 0);
-    for (const t of thumbs) {
-      const r = t.getBoundingClientRect();
-      ctx.drawImage(t, r.left - rr.left, r.top - rr.top, r.width, r.height);
+    for (const cv of canvases) {
+      const r = cv.getBoundingClientRect();
+      ctx.drawImage(cv, r.left - rr.left, r.top - rr.top, r.width, r.height);
     }
     if (slot && gl.isConnected) {
       const r = gl.getBoundingClientRect();

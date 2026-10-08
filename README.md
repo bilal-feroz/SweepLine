@@ -240,9 +240,6 @@ scene → ambient occlusion → sanitize → above water: tilt-shift · bloom ·
 - **Pixel budget.** Above ~2.4 megapixels per frame (large high-DPI windows) the chain renders at
   a reduced internal resolution and the final pass upsamples, keeping the GPU cost bounded.
 
-Camera thumbnails (`registerThumbnail`) are drawn straight to the canvas with the same grade
-applied by the renderer, without post-processing; the water falls back to partial transparency there.
-
 ---
 
 ## Where things live
@@ -268,7 +265,7 @@ src/
     SimController.ts      Runtime: both engines in lock-step, timeline, events, failures, history, export
     seededRandom.ts       Deterministic RNG and stateless per-agent noise
   three/
-    SceneManager.ts       Renderer, scene graph, single + split (per-half viewport) rendering, picking, thumbnails
+    SceneManager.ts       Renderer, scene graph, single + split (per-half viewport) rendering, picking
     post/                 Post-processing chain (PostPipeline), scene grade, look LUT, underwater shafts
     environment/          Sky + atmosphere model, ocean shader, seabed, coast & intake, underwater particulate,
                           shared light-transport and caustics shader chunks

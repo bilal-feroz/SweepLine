@@ -95,7 +95,7 @@ type FramebufferProps = { __webglFramebuffer?: WebGLFramebuffer; __webglMultisam
  * the backdrop where the bent ray lands, and adds foam wherever the backdrop meets the surface
  * (revetment, floats, pontoon, piles). Underwater colour and absorption are applied to the
  * submerged objects themselves, so shallow sand reads turquoise and the channel deep teal.
- * Without a backdrop (camera thumbnails) the surface falls back to partial transparency.
+ * Without a backdrop the surface falls back to partial transparency.
  */
 export class Water {
   readonly mesh: THREE.Mesh;
